@@ -73,7 +73,12 @@ PuntLogSink >> dropCounts [ ^ dropMutex critical: [ dropCounts copy ]
 { #category : 'private' }
 PuntLogSink >> exists: path [
  ^ [ libc stat: path pathString. true ] on: PuntPermissionError do: [ :error |
-   libc errno = 2 ifTrue: [ false ] ifFalse: [ error pass ] ]
+   | parent |
+   parent := libc open: path parent pathString flags: libc readDirectoryFlags mode: 0.
+   parent < 0 ifTrue: [ error pass ].
+   [ libc secure: parent directory: true ] ensure: [ libc close: parent ].
+   (path exists or: [ path isSymlink ]) ifTrue: [ error pass ].
+   false ]
 ]
 
 { #category : 'private' }

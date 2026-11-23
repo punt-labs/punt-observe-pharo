@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add the installed-path smoke entry point, fresh-image runner, strict inspector
+  and independent CI smoke job.
+- Stop absent-backup detection from consulting clobbered FFI errno; validate the
+  parent and preserve metadata errors for existing files and dangling symlinks.
 - Fix private-file reopen decisions under same-thread uFFI errno clobbering;
   count categorized logging drops and assert zero drops in each image writer.
 - Add typed versioned telemetry, pre-enqueue HMAC identifier derivation,

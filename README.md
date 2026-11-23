@@ -1,5 +1,13 @@
 # punt-observe-pharo
 
+`make smoke` exercises the installed path in a newly downloaded Pharo 12 image.
+It checks success/failure outcomes, detached child correlation, concurrent
+rotation, bounded lock drops and recovery, telemetry privacy, and all off
+switches. Linux requires `python3`, `stat`, `flock` and `setsid`. Artifacts and
+the
+fresh installed image remain under the printed `.tmp/smoke-*` directory.
+See the [smoke guide](docs/smoke.md) for the entry point and artifact layout.
+
 > Private, durable diagnostics for Punt Labs Pharo tools.
 
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)

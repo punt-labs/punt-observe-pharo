@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+umask 077
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+for executable in python3 stat flock setsid; do
+    command -v "$executable" >/dev/null || { echo "Missing smoke dependency: $executable" >&2; exit 1; }
+done
+mkdir -p "$root/.tmp"
+run=$(mktemp -d "$root/.tmp/smoke-XXXXXXXX")
+mkdir "$run/bootstrap-home"
+printf 'Smoke artifacts: %s\n' "$run"
+if ! HOME="$run/bootstrap-home" IMAGE_DIR="$run/installed" sh "$root/scripts/setup" >"$run/setup.log" 2>&1; then
+    tail -60 "$run/setup.log" >&2
+    exit 1
+fi
+printf 'PASS fresh Pharo 12 image: downloaded and baseline installed from checkout (no dev image reuse)\n'
+exec python3 "$root/scripts/smoke.py" "$run"

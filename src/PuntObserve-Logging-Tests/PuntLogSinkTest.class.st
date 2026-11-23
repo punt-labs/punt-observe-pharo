@@ -67,6 +67,18 @@ PuntLogSinkTest >> testExactPathsModesAndExistingBackups [
 ]
 
 { #category : 'tests' }
+PuntLogSinkTest >> testFailedMetadataNeverHidesExistingFilesOrSymlinks [
+ self start.
+ sink libc: PuntTestBrokenStatLibC new.
+ self should: [ sink exists: sink home logFile ] raise: PuntPermissionError.
+ self assert: (libc symlink: (home / 'missing-target') pathString to: (sink backup: 1) pathString) equals: 0.
+ self should: [ sink exists: (sink backup: 1) ] raise: PuntPermissionError.
+ (sink backup: 1) delete.
+ sink libc: PuntFailingLibC new.
+ self should: [ sink exists: (sink backup: 1) ] raise: PuntPermissionError
+]
+
+{ #category : 'tests' }
 PuntLogSinkTest >> testHeldFlockTimeoutThenRecovery [
  | held started |
  self start.
@@ -102,4 +114,12 @@ PuntLogSinkTest >> testLocalMutexHasSameBoundedBudget [
  ] ensure: [ release signal ].
  [ holder isTerminated ] whileFalse: [ (Delay forMilliseconds: 1) wait ].
  self assert: (sink append: 'recovered' utf8Encoded)
+]
+
+{ #category : 'tests' }
+PuntLogSinkTest >> testMissingBackupIgnoresStaleErrno [
+ self start.
+ sink libc: PuntStaleErrnoLibC new.
+ self deny: (sink exists: (sink backup: 1)).
+ self assert: (sink exists: sink home logFile)
 ]

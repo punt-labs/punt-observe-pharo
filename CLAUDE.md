@@ -22,8 +22,9 @@ tests. Both fail nonzero on evaluation errors, empty selection or findings.
 
 ## Scope
 
-Core, Logging and Telemetry are implemented. Smoke remains a scaffold for a
-later stage; do not claim its behavior exists.
+Core, Logging, Telemetry and the installed-path Smoke runner are implemented.
+`make smoke` downloads a fresh Pharo 12 image, loads this checkout's baseline,
+and runs isolated subprocess and privacy checks without using the dev image.
 Do not install global providers. Resolve home again after image restoration.
 Follow [DESIGN.md](DESIGN.md), [Core API](docs/core.md), and
 [Logging API](docs/logging.md) and [Telemetry API](docs/telemetry.md) for ownership

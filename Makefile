@@ -5,7 +5,7 @@ export PORT IMAGE_DIR
 .PHONY: help setup start-headless stop test lint check shellcheck smoke
 
 help:
-	@printf '%s\n' 'setup start-headless stop test lint check shellcheck' 'PORT=8430 (override supported); IMAGE_DIR=pharo'
+	@printf '%s\n' 'setup start-headless stop test lint check shellcheck smoke' 'PORT=8430 (override supported); IMAGE_DIR=pharo'
 
 setup:
 	@sh scripts/setup
@@ -25,8 +25,7 @@ lint: shellcheck
 check: lint test
 
 shellcheck:
-	shellcheck scripts/setup scripts/runtime scripts/eval
+	shellcheck scripts/setup scripts/runtime scripts/eval scripts/smoke
 
 smoke:
-	@printf '%s\n' 'Smoke runner is reserved for the smoke implementation stage.' >&2
-	@exit 1
+	@sh scripts/smoke
