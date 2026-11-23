@@ -1,5 +1,12 @@
 # Durable diagnostics
 
+`PuntLog current dropCounts` returns a copy of the sink's per-image counters:
+`#lockTimeout`, `#shortWrite`, `#ioFailure`, `#redactorWithhold`, `#recordFailure`,
+`#invalidRecord` and `#closed`. Every dropped record is counted, even when the
+fixed metadata-only stderr notice is rate-limited (once per minute) or disabled
+for MCP operation. Counters do not contain messages, fields or exception text.
+`PuntShortWriteError` is a `PuntPermissionError`; partial writes are not retried.
+
 Start once at an image entry point; library code only emits typed signals:
 
 ```smalltalk

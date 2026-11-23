@@ -37,6 +37,22 @@ PuntLogSinkTest >> testCloseDrainsActiveCriticalSection [
 ]
 
 { #category : 'tests' }
+PuntLogSinkTest >> testDropCountersSurviveNoticeRateLimiting [
+ sink := PuntHome duringHome: home do: [ PuntLogSink forTool: 'sample-tool' ].
+ sink noticesEnabled: false.
+ sink timeoutNotice. sink timeoutNotice.
+ self assert: (sink dropCounts at: #lockTimeout) equals: 2.
+ self assert: sink noticeCount equals: 1.
+ self deny: (sink append: nil).
+ self assert: (sink dropCounts at: #invalidRecord) equals: 1.
+ sink close.
+ self deny: (sink append: #[]).
+ self assert: (sink dropCounts at: #closed) equals: 1.
+ self deny: (sink locked: [ self fail ]).
+ self assert: (sink dropCounts at: #closed) equals: 2
+]
+
+{ #category : 'tests' }
 PuntLogSinkTest >> testExactPathsModesAndExistingBackups [
  self withHomeDo: [ :paths |
    paths ensureDirectories.

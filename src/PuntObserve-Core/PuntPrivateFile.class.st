@@ -29,7 +29,7 @@ PuntPrivateFile >> append: aByteArray [
  | written |
  self isOpen ifFalse: [ PuntPermissionError signal: 'Private file is closed' ].
  written := libc write: descriptor bytes: aByteArray count: aByteArray size.
- written = aByteArray size ifFalse: [ PuntPermissionError signal: 'Private append incomplete' ].
+ written = aByteArray size ifFalse: [ PuntShortWriteError signal: 'Private append incomplete' ].
  ^ written
 ]
 
@@ -63,9 +63,7 @@ PuntPrivateFile >> open: aFileReference using: anAdapter [
  path := aFileReference asFileReference.
  libc := anAdapter.
  descriptor := libc open: path pathString flags: libc createFlags mode: 8r600.
- descriptor < 0 ifTrue: [
-   libc errno = 17 ifFalse: [ PuntPermissionError signal: 'Cannot create private file' ].
-   descriptor := libc open: path pathString flags: libc appendFlags mode: 0 ].
+ descriptor < 0 ifTrue: [ descriptor := libc open: path pathString flags: libc appendFlags mode: 0 ].
  descriptor < 0 ifTrue: [ PuntPermissionError signal: 'Cannot open private file' ].
  [ libc secure: descriptor directory: false ]
    on: Error do: [ :error | self close. error pass ]

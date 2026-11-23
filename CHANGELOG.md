@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix private-file reopen decisions under same-thread uFFI errno clobbering;
+  count categorized logging drops and assert zero drops in each image writer.
 - Add typed versioned telemetry, pre-enqueue HMAC identifier derivation,
   atomically published private salt, bounded worker and session vetoes.
 - Add private SQLite span/metric persistence, timer-based retention and explicit

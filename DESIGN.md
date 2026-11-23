@@ -103,3 +103,30 @@ Export failures produce only a fixed, rate-limited PuntLogSignal; they never
 recursively enter telemetry or report rejected values or exceptions. Environment
 vetoes are reread after restoration, and disabled startup creates no paths or
 worker. OTEL environment variables never select the exporter.
+
+## DES-006: Count Drops Without Depending on Transient Errno
+
+**Date:** 2026-11-24
+
+The Stage 2 image gate reproduced retained-window loss before telemetry was
+loaded. Instrumentation correlated missing indices with failed private-file
+opens, not lock timeouts, short writes or redactor withholding. On the VM's
+same-thread FFI runner, errno changed from EEXIST (17) to EAGAIN (11) between
+separate FFI calls. The opener rejected an existing lock or active file.
+
+After an unsuccessful exclusive create, attempt a non-creating append open of
+the same path instead of branching on transient errno. Both opens retain
+O_NOFOLLOW and nonblocking flags; the descriptor must still pass regular-file,
+ownership and 0600 validation before writing. If both fail, signal a permission
+error. No alternate path or fragment retry is introduced.
+
+The sink counts closed/invalid records, lock timeouts, short writes, I/O failures,
+redactor withholding and unexpected record failures separately, with fixed
+metadata-only notices limited to once a minute. The gate requires every writer's
+drop counters to be zero, in addition to complete retained-window continuity.
+Rotation decision, descriptor size inspection, shifts and write remain inside
+one flock hold. The two-second acquisition budget is unchanged.
+
+Headless gate children omit stock image preferences: concurrent GlobalIdentifier
+preference initialization otherwise races while creating the shared HOME's
+`.config`, before the logger or telemetry code executes.

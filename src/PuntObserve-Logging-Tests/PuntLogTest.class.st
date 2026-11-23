@@ -47,6 +47,29 @@ PuntLogTest >> tearDown [ PuntLog stop. super tearDown
 ]
 
 { #category : 'tests' }
+PuntLogTest >> testDropAccountingIsCategorizedAndNonRecursive [
+ | sink |
+ self start. sink := logger sink.
+ self assert: (logger dropCounts values allSatisfy: [ :count | count = 0 ]).
+ logger redactor: PuntTestFailingRedactor new.
+ self emit: 'withheld'.
+ self assert: (logger dropCounts at: #redactorWithhold) equals: 1.
+ logger redactor: (PuntLogRedactor new home: home pathString).
+ sink libc: (PuntTestWriteFailureLibC new kind: #shortWrite).
+ self emit: 'short'.
+ self assert: (logger dropCounts at: #shortWrite) equals: 1.
+ sink libc: (PuntTestWriteFailureLibC new kind: #ioFailure).
+ self emit: 'failed'.
+ self assert: (logger dropCounts at: #ioFailure) equals: 1.
+ self assert: sink noticeCount equals: 1.
+ self assert: self contents isEmpty.
+ sink libc: PuntLibC new.
+ self emit: 'recovered'.
+ self assert: (self contents includesSubstring: 'recovered').
+ self assert: logger dropCounts values sum equals: 3
+]
+
+{ #category : 'tests' }
 PuntLogTest >> testFailuresAreWithheldAndNonRecursive [
  | broken |
  self start.

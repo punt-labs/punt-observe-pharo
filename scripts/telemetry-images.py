@@ -64,7 +64,7 @@ Smalltalk exit: 0
         env.pop("SAMPLE_TOOL_TELEMETRY", None)
         if sys.platform.startswith("linux"):
             env["LD_LIBRARY_PATH"] = str(Path(vm).parent) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-        children.append(subprocess.Popen([vm, "--headless", image, "st", str(script)], env=env,
+        children.append(subprocess.Popen([vm, "--headless", image, "--no-default-preferences", "st", str(script)], env=env,
                                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                          stderr=subprocess.DEVNULL))
     try:

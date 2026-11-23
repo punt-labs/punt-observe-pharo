@@ -132,6 +132,10 @@ PuntLog class >> work: aString outcome: outcome correlation: identifier [
  (PuntLogWorkSignal new component: aString; message: 'Background work'; outcome: outcome; correlation: identifier) emit
 ]
 
+{ #category : 'accessing' }
+PuntLog >> dropCounts [ ^ sink dropCounts
+]
+
 { #category : 'initialization' }
 PuntLog >> initialize [
  super initialize. self beacon: Beacon instance.
@@ -148,9 +152,10 @@ PuntLog >> nextPut: aSignal [
    (aSignal class includesBehavior: PuntLogSignal) ifTrue: [
      aSignal level >= threshold ifTrue: [
        | bytes |
-       bytes := redactor cleanEscapedRecord: (formatter format: aSignal).
-       bytes ifNotNil: [ sink append: bytes ] ] ]
- ] on: Error do: [ :error | ^ aSignal ].
+       bytes := formatter format: aSignal.
+       bytes := [ redactor cleanEscapedRecord: bytes ] on: Error do: [ :error | nil ].
+       bytes ifNil: [ sink drop: #redactorWithhold ] ifNotNil: [ sink append: bytes ] ] ]
+ ] on: Error do: [ :error | [ sink drop: #recordFailure ] on: Error do: [ :failure | nil ] ].
  ^ aSignal
 ]
 

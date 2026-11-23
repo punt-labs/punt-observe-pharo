@@ -44,6 +44,26 @@ PuntPrivateFileTest >> testDirectoryInPlaceOfFileRejected [
 ]
 
 { #category : 'tests' }
+PuntPrivateFileTest >> testExistingFileIgnoresStaleErrno [
+ self withHomeDo: [ :paths |
+   | file |
+   paths ensureDirectories.
+   (PuntPrivateFile open: paths logFile) close.
+   file := PuntPrivateFile open: paths logFile using: PuntStaleErrnoLibC new.
+   [ file append: 'retained' utf8Encoded.
+     self assert: file metadata permissions equals: 8r600 ] ensure: [ file close ].
+   self assert: paths logFile contents equals: 'retained' ]
+]
+
+{ #category : 'tests' }
+PuntPrivateFileTest >> testFailedCreateAndReopenStillRejectMissingParent [
+ | path |
+ path := sandbox / 'missing-parent' / 'record.log'.
+ self should: [ PuntPrivateFile open: path using: PuntStaleErrnoLibC new ] raise: PuntPermissionError.
+ self deny: path parent exists
+]
+
+{ #category : 'tests' }
 PuntPrivateFileTest >> testFileSymlinkRejected [
  self withHomeDo: [ :paths |
    | target |

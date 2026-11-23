@@ -1,5 +1,6 @@
 """PHARO-LOG-4/6 acceptance harness; uses only Python's standard library."""
 
+import json
 import os
 from pathlib import Path
 import re
@@ -29,8 +30,8 @@ def main():
         )
         script.write_text(
             f"""| logger payload ready go |
-logger := PuntLog startTool: 'multi-image' role: 'test'.
 PuntLog noticesEnabled: false.
+logger := PuntLog startTool: 'multi-image' role: 'test'.
 ready := {smalltalk_string(root / f'ready-{worker}')} asFileReference.
 ready writeStreamDo: [ :stream | stream nextPutAll: 'ready' ].
 go := {smalltalk_string(root / 'go')} asFileReference.
@@ -41,6 +42,8 @@ payload := {smalltalk_string(payload)}.
 1 to: 420 do: [ :index |
   (PuntLogSignal new component: 'writer'; message: ('TAG-{worker}-' , index asString , ' ' , payload , ' END-{worker}-' , index asString)) emit ].
 {outcome}
+{smalltalk_string(root / f'drops-{worker}.json')} asFileReference writeStreamDo: [ :stream |
+  stream nextPutAll: (STONJSON toString: (Dictionary newFrom: (logger dropCounts associations collect: [ :pair | pair key asString -> pair value ]))) ].
 PuntLog stop.
 Smalltalk exit: 0.
 """
@@ -51,7 +54,7 @@ Smalltalk exit: 0.
             env["LD_LIBRARY_PATH"] = str(Path(vm).parent) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
         processes.append(
             subprocess.Popen(
-                [vm, "--headless", image, "st", str(script)],
+                [vm, "--headless", image, "--no-default-preferences", "st", str(script)],
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
@@ -76,6 +79,12 @@ Smalltalk exit: 0.
                 process.kill()
                 process.wait()
 
+    reasons = {"closed", "invalidRecord", "lockTimeout", "shortWrite", "ioFailure", "redactorWithhold", "recordFailure"}
+    for worker in range(2):
+        counts = json.loads((root / f"drops-{worker}.json").read_text())
+        print(f"WRITER-{worker}-DROPS: " + json.dumps(counts, sort_keys=True), flush=True)
+        assert set(counts) == reasons, counts
+        assert all(count == 0 for count in counts.values()), f"writer {worker} dropped records: {counts}"
     labs = home / ".punt-labs"
     tool = labs / "multi-image"
     logs = tool / "logs"
