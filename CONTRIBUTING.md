@@ -35,3 +35,12 @@ image/port command line. Legacy numeric PID files are refused: confirm ownership
 and stop the old image manually before removing its stale record and restarting.
 Unsupported systems fail closed before launching a managed image; bootstrap and
 in-image APIs remain independent of this Linux runtime-management helper.
+
+On macOS, run `make setup`, then start a foreground Postern image in one terminal:
+
+```sh
+./pharo/pharo "$PWD/pharo/Pharo.image" eval --no-quit 'PosternServer startOn: 8430'
+```
+
+Run `make check` in a second terminal, then stop the foreground image with
+Ctrl-C. `make smoke` runs independently of Postern.

@@ -1,7 +1,8 @@
 """Installed-path smoke orchestration and fail-closed inspection, standard library only."""
 
 import base64
-from contextlib import closing, suppress
+from contextlib import closing
+import fcntl
 import hashlib
 import hmac
 import json
@@ -42,11 +43,16 @@ def log_lines(data, allow_empty=False):
     return lines
 
 
+def private_path(path, mode, is_type):
+    metadata = path.lstat()
+    return is_type(metadata.st_mode) and stat.S_IMODE(metadata.st_mode) == mode and metadata.st_uid == os.getuid()
+
+
 class Smoke:
     def __init__(self, root):
         self.root = root.resolve()
         self.image = self.root / "installed" / "Pharo.image"
-        self.vm = self.root / "installed" / "pharo-vm" / "lib" / "pharo"
+        self.vm = self.root / "installed" / "pharo"
         self.failures = 0
         self.children = []
 
@@ -59,7 +65,7 @@ class Smoke:
         directory = self.root / name
         directory.mkdir()
         home.mkdir(parents=True, exist_ok=True)
-        env = dict(os.environ, HOME=str(home), LD_LIBRARY_PATH=str(self.vm.parent) + os.pathsep + os.environ.get("LD_LIBRARY_PATH", ""))
+        env = dict(os.environ, HOME=str(home), PUNT_SMOKE_PYTHON=sys.executable)
         for key in ("PUNT_TELEMETRY", "PUNT_OBSERVE_SMOKE_TELEMETRY", "PUNT_SMOKE_CONFIG_DISABLED",
                     "PUNT_SMOKE_READY", "PUNT_SMOKE_GO", "PUNT_SMOKE_CHILD_DONE"):
             env.pop(key, None)
@@ -69,7 +75,7 @@ class Smoke:
             env.update(PUNT_SMOKE_READY=str(directory / "ready"), PUNT_SMOKE_GO=str(directory / "go"))
         expression = f"PuntObserveSmoke runRole: '{role}' records: {records} fail: {str(fail).lower()} spawn: {str(spawn).lower()}"
         with (directory / "stdout").open("wb") as out, (directory / "stderr").open("wb") as err:
-            process = subprocess.Popen([str(self.vm), "--headless", str(self.image), "--no-default-preferences", "eval", expression],
+            process = subprocess.Popen([str(self.vm), str(self.image), "--no-default-preferences", "eval", expression],
                                        env=env, cwd=directory, stdin=subprocess.DEVNULL, stdout=out, stderr=err)
         self.children.append(process)
         return process, directory
@@ -114,15 +120,14 @@ class Smoke:
         lock = logs / f"{TOOL}.log.rotate.lock"
         database, salt = tool / "telemetry.db", labs / "telemetry.salt"
         dirs = (labs, tool, logs)
-        self.check(all(stat.S_ISDIR(path.lstat().st_mode) and stat.S_IMODE(path.stat().st_mode) == 0o700 for path in dirs), f"{home.name}: exact directories {tool.relative_to(home)}/logs; all 0700")
+        self.check(all(private_path(path, 0o700, stat.S_ISDIR) for path in dirs), f"{home.name}: exact directories {tool.relative_to(home)}/logs; all 0700 and owned by current user")
         expected = set(files + [lock])
         self.check(set(logs.iterdir()) == expected, f"{home.name}: exact log/lock names, {backups} backups (maximum 5)")
         self.check(set(labs.iterdir()) == ({tool, salt} if telemetry else {tool}), f"{home.name}: exact shared salt/tool paths")
         sidecars = [Path(str(database) + suffix) for suffix in ("-journal", "-wal", "-shm") if Path(str(database) + suffix).exists()]
         self.check(set(tool.iterdir()) == ({logs, database, *sidecars} if telemetry else {logs}), f"{home.name}: exact tool files, no unexpected database/sidecar paths")
         private = files + [lock] + ([database, salt] if telemetry else []) + sidecars
-        modes = subprocess.check_output(["stat", "-c", "%a", *map(str, private)], text=True).splitlines()
-        self.check(all(mode == "600" for mode in modes) and all(stat.S_ISREG(path.lstat().st_mode) for path in private), f"{home.name}: stat confirms all files 0600, including lock/db/salt and {len(sidecars)} present sidecars")
+        self.check(all(private_path(path, 0o600, stat.S_ISREG) for path in private), f"{home.name}: lstat confirms all files 0600 and owned by current user, including lock/db/salt and {len(sidecars)} present sidecars")
         sizes = [path.stat().st_size for path in files]
         self.check(backups <= 5 and all(size <= BOUND for size in sizes), f"{home.name}: log byte bounds <= {BOUND}; sizes={sizes}")
         data = b"".join(path.read_bytes() for path in files)
@@ -157,7 +162,7 @@ class Smoke:
                 probe.execute("BEGIN IMMEDIATE")
                 probe.execute("UPDATE signals SET schema_version=schema_version+1")
                 journal = Path(str(database) + "-journal")
-                self.check(journal.is_file() and stat.S_IMODE(journal.stat().st_mode) == 0o600, f"{label}: rollback journal forced by open transaction; mode 0600")
+                self.check(private_path(journal, 0o600, stat.S_ISREG), f"{label}: rollback journal forced by open transaction; mode 0600, owned by current user")
             finally:
                 probe.rollback()
         return rows
@@ -203,31 +208,14 @@ class Smoke:
         child = self.launch("held-lock", home, role="locked", barrier=True)
         self.wait_ready([child])
         lock = self.paths(home)[2] / f"{TOOL}.log.rotate.lock"
-        holder = subprocess.Popen(["flock", "-x", "-w", "5", str(lock), "sh", "-c", "printf ready; cat >/dev/null"], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        try:
-            if holder.stdout.read(5) != b"ready":
-                raise RuntimeError("flock holder did not start")
+        with lock.open("rb") as holder:
+            fcntl.flock(holder, fcntl.LOCK_EX | fcntl.LOCK_NB)
             started = time.monotonic()
             (child[1] / "go").write_text("go")
             report = self.finish(child, drops=True, timeout=15)
             elapsed = time.monotonic() - started
-        finally:
-            with suppress(BrokenPipeError):
-                holder.stdin.close()
-            try:
-                try:
-                    holder.wait(timeout=5)
-                except subprocess.TimeoutExpired as error:
-                    holder.kill()
-                    holder.wait()
-                    raise RuntimeError("flock holder did not terminate") from error
-            finally:
-                holder.stdout.close()
-                if child[0].poll() is None:
-                    child[0].kill()
-                    child[0].wait()
         counts = report["log_drops"]
-        self.check(2 < elapsed < 15 and counts["lockTimeout"] == 4 and sum(counts.values()) == 4, f"held-lock: CLI flock held {elapsed:.2f}s; 4 records skipped/count=4; bounded run, no hang")
+        self.check(2 < elapsed < 15 and counts["lockTimeout"] == 4 and sum(counts.values()) == 4, f"held-lock: independent flock held {elapsed:.2f}s; 4 records skipped/count=4; bounded run, no hang")
         self.check((child[1] / "stderr").read_text().count("diagnostic record skipped (lockTimeout)") == 1, "held-lock: one rate-limited metadata-only timeout notice")
         self.check((self.paths(home)[2] / f"{TOOL}.log").stat().st_size == 0, "held-lock: skipped records were not written")
         self.finish(self.launch("after-lock", home, role="recovered"))
