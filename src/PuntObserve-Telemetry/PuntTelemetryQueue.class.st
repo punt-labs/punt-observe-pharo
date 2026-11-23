@@ -3,6 +3,8 @@ PHARO-TEL-1, PHARO-TEL-2, PHARO-TEL-3, PHARO-TEL-4, PHARO-TEL-5: A hard capacity
 
   PuntTelemetryQueue new class name
   >>> #PuntTelemetryQueue
+
+Losses use a semaphore excess-signal counter: primitive signals are atomic and producers never wait on a counter lock. No process waits on this semaphore.
 "
 Class {
 	#name : 'PuntTelemetryQueue',
@@ -28,19 +30,19 @@ PuntTelemetryQueue >> close [ mutex critical: [ accepting := false ]. wake signa
 
 { #category : 'operating' }
 PuntTelemetryQueue >> discard [
- ^ mutex critical: [ | count | count := items size. items removeAll. dropped := dropped + count. count ]
+ ^ mutex critical: [ | count | count := items size. items removeAll. count timesRepeat: [ dropped signal ]. count ]
 ]
 
 { #category : 'operating' }
-PuntTelemetryQueue >> drop [ dropped := dropped + 1. ^ false
+PuntTelemetryQueue >> drop [ dropped signal. ^ false
 ]
 
 { #category : 'accessing' }
-PuntTelemetryQueue >> dropped [ ^ dropped
+PuntTelemetryQueue >> dropped [ ^ dropped count
 ]
 
 { #category : 'initialization' }
-PuntTelemetryQueue >> initialize [ super initialize. items := OrderedCollection new: 1024. mutex := Mutex new. accepting := true. dropped := 0. wake := Semaphore new
+PuntTelemetryQueue >> initialize [ super initialize. items := OrderedCollection new: 1024. mutex := Mutex new. accepting := true. dropped := PuntTelemetryDropCounter new. wake := Semaphore new
 ]
 
 { #category : 'testing' }

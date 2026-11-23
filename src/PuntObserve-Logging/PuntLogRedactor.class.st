@@ -15,7 +15,7 @@ Class {
 }
 
 { #category : 'private' }
-PuntLogRedactor >> authPattern [ ^ self expand: '(\b(bearer|basic)([\s<VT><NEL>]+|\\(t|x09|x20))+)(\[redacted\]|["'']?[a-z0-9._~+/%=-]+["'']?)'
+PuntLogRedactor >> authPattern [ ^ self expand: '(\b(bearer|basic)([\s<VT><NEL><LS><PS>]+|\\(t|x09|x20))+)(\[redacted\]|["'']?[a-z0-9._~+/%=-]+["'']?)'
 ]
 
 { #category : 'private' }
@@ -63,7 +63,8 @@ PuntLogRedactor >> emailPattern [ ^ self expand: '[a-z0-9._%+\-]+@[a-z0-9.\-]+\.
 { #category : 'private' }
 PuntLogRedactor >> escapedCode: code [
  ^ String streamContents: [ :stream |
-   stream nextPutAll: '\x'; nextPutAll: ((code printStringBase: 16) asLowercase padLeftTo: 2 with: $0) ]
+   stream nextPutAll: (code <= 255 ifTrue: [ '\x' ] ifFalse: [ '\u' ]);
+     nextPutAll: ((code printStringBase: 16) asLowercase padLeftTo: (code <= 255 ifTrue: [ 2 ] ifFalse: [ 4 ]) with: $0) ]
 ]
 
 { #category : 'private' }
@@ -160,7 +161,7 @@ PuntLogRedactor >> replace: text pattern: pattern with: replacement prefix: keep
 PuntLogRedactor >> restoreSpacing: text [
  | restored |
  restored := text.
- #(9 10 11 12 13 133) do: [ :code |
+ #(9 10 11 12 13 133 8232 8233) do: [ :code |
    restored := restored copyReplaceAll: (self escapedCode: code) with: (Character value: code) asString ].
  ^ restored
 ]

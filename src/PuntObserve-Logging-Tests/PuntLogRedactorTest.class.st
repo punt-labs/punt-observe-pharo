@@ -36,6 +36,21 @@ PuntLogRedactorTest >> testControlsAndUtf8ByteCap [
 ]
 
 { #category : 'tests' }
+PuntLogRedactorTest >> testCredentialLabelsAndCaptureNumbering [
+ | matcher |
+ matcher := PuntLogRegexMatcher forString: '(api_key=)([^ ]+)' ignoreCase: true.
+ self assert: (matcher matches: 'api_key=SECRET').
+ self assert: (matcher subexpression: 1) equals: 'api_key=SECRET'.
+ self assert: (matcher subexpression: 2) equals: 'api_key='.
+ { 'api_key=SECRET' -> 'api_key=[redacted]'.
+   'Cookie: a=SECRET' -> 'Cookie: [redacted]'.
+   'Set-Cookie: a=SECRET' -> 'Set-Cookie: [redacted]'.
+   'Authorization: Basic SHORT' -> 'Authorization: [redacted]'.
+   'Bearer SHORT' -> 'Bearer [redacted]' } do: [ :pair |
+     self assert: (redactor cleanRecord: pair key) utf8Decoded equals: (String streamContents: [ :stream | stream nextPutAll: pair value; lf ]) ]
+]
+
+{ #category : 'tests' }
 PuntLogRedactorTest >> testEmptyAndOpaqueAndCap [
  | text |
  self assert: (redactor cleanRecord: '') isNil.
@@ -67,4 +82,18 @@ PuntLogRedactorTest >> testGoPatterns [
    '/home/alice/private' -> '[path]'.
    'in /var/private' -> 'in [path]' } do: [ :pair |
      self assert: (redactor cleanRecord: pair key) utf8Decoded equals: (String streamContents: [ :stream | stream nextPutAll: pair value; lf ]) ]
+]
+
+{ #category : 'tests' }
+PuntLogRedactorTest >> testUnicodeSeparatorsInRawAndEscapedCredentials [
+ #(8232 8233) do: [ :code |
+   | separator prefix input expected |
+   separator := (Character value: code) asString.
+   #('Bearer' 'Basic') do: [ :scheme |
+     prefix := String streamContents: [ :stream | stream nextPutAll: scheme; nextPutAll: separator ].
+     input := String streamContents: [ :stream | stream nextPutAll: prefix; nextPutAll: 'SHORTSECRET' ].
+     expected := String streamContents: [ :stream |
+       stream nextPutAll: (PuntEscaper escape: prefix); nextPutAll: '[redacted]'; lf ].
+     self assert: (redactor cleanRecord: input) utf8Decoded equals: expected.
+     self assert: (redactor cleanEscapedRecord: (PuntEscaper escape: input)) utf8Decoded equals: expected ] ]
 ]

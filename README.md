@@ -18,6 +18,9 @@ Loading packages does
 not start loggers or install global telemetry providers.
 
 **Platforms:** Linux x86_64; macOS ABI support is implemented but not yet tested.
+The managed runtime requires Python 3 with Linux pidfd support. Startup records
+the process incarnation; stop verifies it and signals a pinned process handle,
+never a bare PID. Legacy or mismatched PID records are refused without signalling.
 
 ## Quick Start
 

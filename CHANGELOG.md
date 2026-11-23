@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Handle escaped Unicode separators in credentials, make logger startup
+  transactional with an eager guard, atomically count queue drops, and verify
+  managed process incarnations before stopping them.
 - Review and harden loss accounting, unwind cleanup, configuration snapshots,
   private path races and scalar printing; add clause-to-test traceability.
 - Add the installed-path smoke entry point, fresh-image runner, strict inspector

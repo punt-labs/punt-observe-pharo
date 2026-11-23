@@ -162,6 +162,19 @@ separate FFI call. Existing sidecars use the same existence boundary.
 
 ## Clause Traceability
 
+The logger's guard is created during class initialization and session reset,
+never lazily by competing callers. Startup publishes Current only after
+registration/subscription succeeds; curtailed starts stop the attempted logger.
+Credential matching restores escaped line/paragraph separators before masking.
+RxMatcher subexpression 1 is the full match; subexpression 2 is the first capture
+and deliberately preserves credential labels. Queue losses use atomic semaphore
+signals instead of producer-side read/modify/write arithmetic or a waiting lock.
+
+The Linux runtime records PID, kernel start time, boot identity, image and port.
+Stop pins a pidfd before validation and sends through that handle, so PID reuse
+between validation and termination cannot redirect a signal. It refuses legacy,
+foreign and unsupported process management rather than sending a bare-PID kill.
+
 The table maps every Pharo clause to its owning classes and executable gates.
 Selectors below are in the named SUnit class; Python gates inspect files from
 independent images. The gates validate behavior, not merely source citations.

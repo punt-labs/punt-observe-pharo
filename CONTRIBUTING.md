@@ -28,3 +28,10 @@ Use `PORT=8431` to isolate another image. To verify a fresh download without
 overwriting the workspace image, use `make IMAGE_DIR="$PWD/.tmp/fresh-pharo"
 setup`, then use that same IMAGE_DIR with PORT=8431 for startup and shutdown.
 Never run setup against a running image. Stop does not save.
+
+Managed startup/shutdown requires Python 3 and Linux pidfd support. Runtime
+records include kernel start time and boot identity; stop also verifies the
+image/port command line. Legacy numeric PID files are refused: confirm ownership
+and stop the old image manually before removing its stale record and restarting.
+Unsupported systems fail closed before launching a managed image; bootstrap and
+in-image APIs remain independent of this Linux runtime-management helper.

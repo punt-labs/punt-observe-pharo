@@ -59,6 +59,22 @@ PuntTelemetryTest >> tearDown [ PuntTelemetry shutdown. telemetry ifNotNil: [ te
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testConcurrentDropsNeverWaitOnQueueMutex [
+ | queue lock done processes |
+ queue := PuntTelemetryQueue new. lock := queue instVarNamed: 'mutex'. done := Semaphore new.
+ processes := OrderedCollection new.
+ [ lock critical: [
+     8 timesRepeat: [ processes add: [
+       [ 2000 timesRepeat: [ queue push: #rejected. Processor yield ] ] ensure: [ done signal ] ] fork ].
+     8 timesRepeat: [ self deny: (done waitTimeoutMilliseconds: 5000) ] ].
+   self assert: queue dropped equals: 16000.
+   self assert: queue isEmpty.
+   queue close. self deny: (queue push: #closed).
+   self assert: queue dropped equals: 16001
+ ] ensure: [ processes do: [ :process | process terminate ] ]
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testConfigurationBoundsAndConsent [
  #(0 -1 3651 1.5) do: [ :days | self should: [ (PuntTelemetryConfig new retentionDays: days) validatedCopy ] raise: Error ].
  #('http://example.test' 'http://localhost' 'ftp://127.0.0.1' 'https://user:password@example.test' 'https://example.test/?token=secret') do: [ :endpoint |

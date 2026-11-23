@@ -56,7 +56,11 @@ PuntLog class >> fork: aBlock named: aString correlation: identifier at: priorit
 ]
 
 { #category : 'private' }
-PuntLog class >> guard [ ^ Guard ifNil: [ Guard := Mutex new ]
+PuntLog class >> guard [ ^ Guard
+]
+
+{ #category : 'class initialization' }
+PuntLog class >> initialize [ Guard := Mutex new
 ]
 
 { #category : 'testing' }
@@ -82,7 +86,7 @@ PuntLog class >> registerSession [
 
 { #category : 'system startup' }
 PuntLog class >> shutDown: quitting [
- Current ifNotNil: [ Current stop ]. Current := nil. Guard := nil
+ Current ifNotNil: [ Current stop ]. Current := nil. Guard := Mutex new
 ]
 
 { #category : 'processes' }
@@ -98,22 +102,23 @@ PuntLog class >> startTool: aString role: aRole [
 PuntLog class >> startTool: aString role: aRole level: aLevel [
  PuntLogLevel validate: aLevel. PuntHome validateTool: aString.
  ^ self guard critical: [
-   Current ifNil: [
-     | logger |
+   Current := Current ifNil: [
+     | logger tool |
+     tool := aString copy.
      logger := self new.
-     logger tool: aString; level: aLevel.
-     Tool := aString copy. Role := aRole. Threshold := aLevel.
-     Current := logger.
-     self registerSession.
-     logger start ].
-   Current ]
+     [ logger tool: tool; level: aLevel.
+       self registerSession.
+       logger start
+     ] ifCurtailed: [ logger stop ].
+     Tool := tool. Role := aRole. Threshold := aLevel.
+     logger ] ]
 ]
 
 { #category : 'system startup' }
 PuntLog class >> startUp: resuming [
  | tool role level |
  tool := Tool. role := Role. level := Threshold.
- Current ifNotNil: [ Current stop ]. Current := nil. Guard := nil.
+ Current ifNotNil: [ Current stop ]. Current := nil. Guard := Mutex new.
  tool ifNotNil: [ self startTool: tool role: role level: level ]
 ]
 

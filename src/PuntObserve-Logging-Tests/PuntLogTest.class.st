@@ -47,6 +47,26 @@ PuntLogTest >> tearDown [ PuntLog stop. super tearDown
 ]
 
 { #category : 'tests' }
+PuntLogTest >> testConcurrentStartsUseEagerSessionGuard [
+ | ready done results processes collected |
+ PuntLog shutDown: false.
+ self deny: (PuntLog classPool at: #Guard) isNil.
+ ready := Semaphore new. done := Semaphore new. results := SharedQueue new.
+ processes := (1 to: 16) collect: [ :index |
+   [ ready wait.
+     [ [ results nextPut: (PuntHome duringHome: home do: [ PuntLog startTool: 'sample-tool' role: 'test' ]) ]
+       on: Error do: [ :error | results nextPut: #failed ] ] ensure: [ done signal ] ] fork ].
+ [ 16 timesRepeat: [ ready signal ].
+   16 timesRepeat: [ self deny: (done waitTimeoutMilliseconds: 5000) ].
+   collected := (1 to: 16) collect: [ :index | results next ].
+   self deny: (collected includes: #failed).
+   logger := PuntLog current.
+   self assert: (collected allSatisfy: [ :each | each == logger ]).
+   self assert: (self subscriptionsFor: logger) equals: 1
+ ] ensure: [ processes do: [ :process | process terminate ] ]
+]
+
+{ #category : 'tests' }
 PuntLogTest >> testDropAccountingIsCategorizedAndNonRecursive [
  | sink |
  self start. sink := logger sink.
@@ -67,6 +87,23 @@ PuntLogTest >> testDropAccountingIsCategorizedAndNonRecursive [
  self emit: 'recovered'.
  self assert: (self contents includesSubstring: 'recovered').
  self assert: logger dropCounts values sum equals: 3
+]
+
+{ #category : 'tests' }
+PuntLogTest >> testFailedStartCleansSubscriptionAndAllowsRetry [
+ | failed |
+ PuntLog noticesEnabled: false.
+ [ self should: [ PuntHome duringHome: home do: [ PuntTestFailingStartLog startTool: 'sample-tool' role: 'test' ] ] raise: Error.
+   failed := PuntTestFailingStartLog lastAttempt.
+   self assert: PuntLog current isNil.
+   self assert: (self subscriptionsFor: failed) equals: 0.
+   self deny: (failed sink append: 'not-written' utf8Encoded).
+   self assert: (failed dropCounts at: #closed) equals: 1.
+   self start.
+   self assert: (self subscriptionsFor: logger) equals: 1.
+   self emit: 'retry-succeeded'.
+   self assert: (self contents includesSubstring: 'retry-succeeded')
+ ] ensure: [ PuntTestFailingStartLog lastAttempt: nil ]
 ]
 
 { #category : 'tests' }
