@@ -29,5 +29,6 @@ PuntTelemetrySpanExporter >> export: batch [
 ]
 
 { #category : 'exporting' }
-PuntTelemetrySpanExporter >> shutdown [ delegate shutdown
+PuntTelemetrySpanExporter >> shutdown [
+ ^ delegate shutdown
 ]

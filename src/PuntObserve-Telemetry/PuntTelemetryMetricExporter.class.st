@@ -29,5 +29,6 @@ PuntTelemetryMetricExporter >> export: batch [
 ]
 
 { #category : 'lifecycle' }
-PuntTelemetryMetricExporter >> shutdown [ delegate shutdown
+PuntTelemetryMetricExporter >> shutdown [
+ ^ delegate shutdown
 ]

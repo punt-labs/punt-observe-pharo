@@ -172,6 +172,15 @@ PuntTelemetryTest >> testExporterFailureAndBoundedShutdown [
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testExporterShutdownPreservesDelegateResults [
+ { PuntTelemetrySpanExporter -> OTSpanExporter. PuntTelemetryMetricExporter -> OTMetricExporter } do: [ :classes |
+   | exporter |
+   exporter := classes key new delegate: classes value new.
+   self assert: exporter shutdown identicalTo: true.
+   self assert: exporter shutdown identicalTo: false ]
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testFacadeSaturationDoesNotWaitForExporter [
  | stalled observation started |
  self start: PuntTelemetryConfig new.
@@ -398,6 +407,23 @@ PuntTelemetryTest >> testSourceGateIncludesOtelExtensionOwners [
  [ self assert: ((PuntLogSourceGate violationsInPackages: #('PuntObserve-Telemetry-Tests') allowing: #()) includes: OTSpanExporter class >> method).
    self deny: ((PuntLogSourceGate violationsInPackages: #('PuntObserve-Telemetry-Tests') allowing: #(OTSpanExporter)) includes: OTSpanExporter class >> method) ]
    ensure: [ OTSpanExporter class removeSelector: method ]
+]
+
+{ #category : 'tests' }
+PuntTelemetryTest >> testSpanLifecycleDoesNotEmitSdkWarnings [
+ | previous messages |
+ previous := OTDiagnosticLogger current. messages := OrderedCollection new.
+ OTDiagnosticLogger current: (OTDiagnosticLogger onMessageDo: [ :severity :message | messages add: message ]).
+ [ OTTracerProvider noteSpanProcessor: OTSimpleSpanProcessor new failedDuring: 'shutdown' error: (Error new messageText: 'capture-control').
+   self assert: messages size equals: 1. messages removeAll.
+   self start: PuntTelemetryConfig new.
+   self recordEventually: self observation.
+   self waitUntil: [ self rows isNotEmpty ].
+   PuntTelemetry shutdown.
+   self assert: self rows first first equals: 'span'.
+   self assert: telemetry worker isNil.
+   self assert: messages isEmpty
+ ] ensure: [ PuntTelemetry shutdown. OTDiagnosticLogger current: previous ]
 ]
 
 { #category : 'tests' }

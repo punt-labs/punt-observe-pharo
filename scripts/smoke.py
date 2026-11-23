@@ -90,6 +90,8 @@ class Smoke:
             raise RuntimeError(f"{directory.name}: image hung") from None
         if code != expected:
             raise RuntimeError(f"{directory.name}: exit {code}, expected {expected}; see {directory / 'stderr'}")
+        self.check(b"OpenTelemetry warning" not in (directory / "stdout").read_bytes(),
+                   f"{directory.name}: stdout has no OpenTelemetry warnings")
         report = json.loads((directory / "result.json").read_text())
         self.check(report["outcome"] == ("failed" if expected else "ok"), f"{directory.name}: exit={code}, symmetric outcome={report['outcome']}")
         self.check(report["worker_stopped"] and report["telemetry_dropped"] == 0, f"{directory.name}: bounded worker shutdown, no telemetry drops")

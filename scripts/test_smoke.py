@@ -2,6 +2,7 @@
 
 import unittest
 import importlib.util
+import json
 import os
 from pathlib import Path
 import stat
@@ -14,6 +15,20 @@ from smoke import Smoke, log_lines, private_path
 
 
 class SmokeInspectorTest(unittest.TestCase):
+    def test_finish_rejects_opentelemetry_warning_on_stdout(self):
+        report = {"outcome": "ok", "worker_stopped": True, "telemetry_dropped": 0, "log_drops": {"ioFailure": 0}}
+        for stdout, findings in ((b"", 0), (b"ordinary output\n", 0), (b"OpenTelemetry warning: shutdown failed\n", 1)):
+            with self.subTest(stdout=stdout), TemporaryDirectory() as directory:
+                path = Path(directory)
+                (path / "stdout").write_bytes(stdout)
+                (path / "result.json").write_text(json.dumps(report))
+                runner = Smoke(path)
+                process = Mock()
+                process.wait.return_value = 0
+                with patch("builtins.print"):
+                    self.assertEqual(runner.finish((process, path)), report)
+                self.assertEqual(runner.failures, findings)
+
     def test_private_path_requires_exact_mode_type_and_owner(self):
         with TemporaryDirectory() as directory:
             path = Path(directory) / "file"
