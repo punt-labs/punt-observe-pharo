@@ -8,16 +8,32 @@ Class {
 	#name : 'PuntSQLiteMetricExporter',
 	#superclass : 'OTMetricExporter',
 	#instVars : [
-		'store'
+		'store',
+		'dropped'
 	],
 	#category : 'PuntObserve-Telemetry',
 	#package : 'PuntObserve-Telemetry'
 }
 
+{ #category : 'accessing' }
+PuntSQLiteMetricExporter >> dropped [ ^ dropped count
+]
+
 { #category : 'exporting' }
 PuntSQLiteMetricExporter >> export: snapshot [
- ^ [ store transaction: [ snapshot metrics do: [ :metric | metric points do: [ :point | store insert: (store metricValues: metric point: point) ] ] ]. true ]
+ ^ [ store transaction: [ snapshot metrics do: [ :metric | metric points do: [ :point | self exportMetric: metric point: point ] ] ]. true ]
    on: Error do: [ :error | PuntTelemetryDiagnostics noteFailure. false ]
+]
+
+{ #category : 'private' }
+PuntSQLiteMetricExporter >> exportMetric: metric point: point [
+ | values |
+ values := [ store metricValues: metric point: point ] on: Error do: [ :error | nil ].
+ values ifNil: [ dropped signal. PuntTelemetryDiagnostics noteFailure ] ifNotNil: [ store insert: values ]
+]
+
+{ #category : 'initialization' }
+PuntSQLiteMetricExporter >> initialize [ super initialize. dropped := PuntTelemetryDropCounter new
 ]
 
 { #category : 'accessing' }

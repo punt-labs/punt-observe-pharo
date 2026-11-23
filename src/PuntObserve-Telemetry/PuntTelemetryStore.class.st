@@ -45,10 +45,12 @@ PuntTelemetryStore >> insert: values [
 
 { #category : 'converting' }
 PuntTelemetryStore >> metricValues: metric point: point [
- | histogram aggregation |
+ | histogram aggregation version |
+ version := point attributes at: 'punt.schema.version' ifAbsent: [ ^ nil ].
+ (version isInteger and: [ version > 0 ]) ifFalse: [ ^ nil ].
  histogram := metric kind = #histogram.
  aggregation := histogram ifTrue: [ STONJSON toString: { 'bounds' -> point explicitBounds. 'buckets' -> point bucketCounts } asDictionary ] ifFalse: [ 'delta' ].
- ^ { histogram ifTrue: [ 'histogram' ] ifFalse: [ 'counter' ]. metric name. point attributes at: 'punt.schema.version'.
+ ^ { histogram ifTrue: [ 'histogram' ] ifFalse: [ 'counter' ]. metric name. version.
      self nanoseconds: point startTimestamp. self nanoseconds: point timestamp. nil. nil. metric unit.
      histogram ifTrue: [ point sum ] ifFalse: [ point value ]. histogram ifTrue: [ point count ] ifFalse: [ nil ].
      STONJSON toString: point attributes. aggregation }

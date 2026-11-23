@@ -218,6 +218,29 @@ PuntTelemetryTest >> testIdentifierBounds [
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testMetricOverflowSkipsOnlyTheInvalidPoint [
+ | paths exporter now point valid overflow metric snapshot |
+ paths := PuntHome duringHome: home do: [ (PuntHome forTool: 'sample-tool') ensureDirectories ].
+ store := PuntTelemetryStore new home: paths retentionDays: 30.
+ exporter := PuntSQLiteMetricExporter new store: store.
+ now := DateAndTime now.
+ point := [ :attributes | OTNumberDataPoint attributes: attributes value: 1 startTimestamp: now timestamp: now ].
+ valid := point value: (Dictionary newFrom: { 'punt.schema.version' -> 1 }).
+ overflow := point value: (Dictionary newFrom: { 'otel.metric.overflow' -> true }).
+ metric := OTSumMetricData new name: 'test.counter'; unit: '1'; points: { valid. overflow. valid }; yourself.
+ snapshot := OTMetricSnapshot empty metrics: { metric }; yourself.
+ self assert: (exporter export: snapshot).
+ self assert: exporter dropped equals: 1.
+ self assert: self rows size equals: 2.
+ self assert: (self rows allSatisfy: [ :row | (row at: 3) = 1 ]).
+ self assert: (exporter export: OTMetricSnapshot empty).
+ self assert: exporter dropped equals: 1.
+ self assert: self rows size equals: 2.
+ store close.
+ self deny: (exporter export: snapshot)
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testOtlpOnlyExplicitConfigWithHashedPayload [
  | server payloads config hash |
  payloads := SharedQueue new.
