@@ -1,4 +1,4 @@
-| suite result details |
+| suite result details report |
 suite := TestSuite new.
 (Smalltalk globals allClasses select: [ :each |
   each isTestCase and: [ each package name beginsWith: 'PuntObserve-' ] ])
@@ -16,11 +16,11 @@ CurrentExecutionEnvironment runTestsBy: [
       do: [ :error |
         details add: test printString , ': ' , error description.
         error sunitAnnounce: test toResult: result ] ] ].
-String streamContents: [ :stream |
+report := String streamContents: [ :stream |
   stream nextPutAll: 'Tests: '; print: result runCount;
     nextPutAll: '  Passed: '; print: result passedCount;
     nextPutAll: '  Failures: '; print: result failureCount;
     nextPutAll: '  Errors: '; print: result errorCount; cr.
   result defects do: [ :each | stream print: each; cr ].
-  details do: [ :each | stream nextPutAll: each; cr ].
-  result hasPassed ifTrue: [ stream nextPutAll: 'PUNT-OK' ] ]
+  details do: [ :each | stream nextPutAll: each; cr ] ].
+{ report. result hasPassed }

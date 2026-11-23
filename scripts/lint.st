@@ -12,5 +12,4 @@ dirty := false.
       findings add: method methodClass name , ' >> #' , method selector , ': ' , critique rule name ] ].
   each critiques do: [ :critique | findings add: each name , ': ' , critique rule name ].
   findings ifEmpty: [ results add: each name , ': clean' ] ifNotEmpty: [ dirty := true. results addAll: findings ] ].
-dirty ifFalse: [ results add: 'PUNT-OK' ].
-String cr join: results
+{ String cr join: results. dirty not }
