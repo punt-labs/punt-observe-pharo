@@ -68,6 +68,22 @@ PuntLogRedactorTest >> testFailureAndUnsettledWithheld [
 ]
 
 { #category : 'tests' }
+PuntLogRedactorTest >> testFormattedLiteralEscapesCannotSplitCredentials [
+ | formatter |
+ formatter := PuntLogFormatter new.
+ #('Cookie: a=SECRET\x0ab=OTHER' 'password=PART1\x09PART2' 'password=PART1\\PART2') do: [ :input |
+   | bytes text |
+   bytes := redactor cleanEscapedRecord: (formatter format: (PuntLogSignal new component: 'test'; message: input)).
+   self deny: bytes isNil.
+   text := bytes utf8Decoded.
+   self assert: (text includesSubstring: '[redacted]').
+   #('SECRET' 'OTHER' 'PART1' 'PART2') do: [ :secret | self deny: (text includesSubstring: secret) ] ].
+ self assert: (redactor cleanEscapedRecord: (formatter format: (PuntLogSignal new component: 'test'; message: 'literal \\')) ) utf8Decoded lines size equals: 1.
+ self assert: (redactor restoreSpacing: (PuntEscaper escape: 'literal \\')) equals: 'literal \\'
+
+]
+
+{ #category : 'tests' }
 PuntLogRedactorTest >> testGoPatterns [
  { 'https://u:p@host.test/path?q=secret#frag' -> '[url]'.
    'Cookie: a=SECRET; b=OTHER' -> 'Cookie: [redacted]'.

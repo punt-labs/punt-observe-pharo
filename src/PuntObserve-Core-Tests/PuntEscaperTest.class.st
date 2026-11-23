@@ -29,6 +29,12 @@ PuntEscaperTest >> testForgedLine [
 ]
 
 { #category : 'tests' }
+PuntEscaperTest >> testLiteralBackslashesAreUnambiguous [
+ self assert: (PuntEscaper escape: '\x0a\\') equals: '\x5cx0a\x5c\x5c'
+
+]
+
+{ #category : 'tests' }
 PuntEscaperTest >> testOrdinaryUnicode [ self assert: (PuntEscaper escape: 'café 日本語') equals: 'café 日本語'
 ]
 

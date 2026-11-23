@@ -41,7 +41,9 @@ libc call.
 ## Escaping
 
 `PuntEscaper escape:` accepts a String, including empty strings. It preserves
-ordinary Unicode and escapes C0, DEL, C1, line/paragraph separators and Unicode
-Cf characters as lowercase hex: `\xNN`, `\uNNNN`, or `\UNNNNNNNN` for
-supplementary format characters. It does not append a newline or redact secrets;
-those are later logging-layer responsibilities.
+ordinary Unicode and escapes backslash (`\x5c`), C0, DEL, C1, line/paragraph
+separators and Unicode Cf characters as lowercase hex: `\xNN`, `\uNNNN`, or
+`\UNNNNNNNN` for supplementary format characters. Escaping backslash keeps the
+output unambiguous: every `\` in it starts an escape the redactor can decode.
+It does not append a newline or redact secrets; those are later logging-layer
+responsibilities.

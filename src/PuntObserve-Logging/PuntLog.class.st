@@ -60,7 +60,8 @@ PuntLog class >> guard [ ^ Guard
 ]
 
 { #category : 'class initialization' }
-PuntLog class >> initialize [ Guard := Mutex new
+PuntLog class >> initialize [
+ Guard ifNil: [ Guard := Mutex new ]
 ]
 
 { #category : 'testing' }
@@ -86,7 +87,7 @@ PuntLog class >> registerSession [
 
 { #category : 'system startup' }
 PuntLog class >> shutDown: quitting [
- Current ifNotNil: [ Current stop ]. Current := nil. Guard := Mutex new
+ self guard critical: [ Current ifNotNil: [ Current stop ]. Current := nil ]
 ]
 
 { #category : 'processes' }
@@ -116,10 +117,11 @@ PuntLog class >> startTool: aString role: aRole level: aLevel [
 
 { #category : 'system startup' }
 PuntLog class >> startUp: resuming [
- | tool role level |
- tool := Tool. role := Role. level := Threshold.
- Current ifNotNil: [ Current stop ]. Current := nil. Guard := Mutex new.
- tool ifNotNil: [ self startTool: tool role: role level: level ]
+ self guard critical: [
+   | tool role level |
+   tool := Tool. role := Role. level := Threshold.
+   Current ifNotNil: [ Current stop ]. Current := nil.
+   tool ifNotNil: [ self startTool: tool role: role level: level ] ]
 ]
 
 { #category : 'registration' }

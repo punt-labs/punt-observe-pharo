@@ -24,8 +24,8 @@ PuntEscaper class >> escape: aString [
 PuntEscaper class >> mustEscape: aCharacter [
  | code |
  code := aCharacter codePoint.
- ^ code < 32 or: [ (code between: 127 and: 159) or: [
-   (#(16r2028 16r2029) includes: code) or: [ Unicode is: aCharacter inCategory: 2 ] ] ]
+ ^ code = 92 or: [ code < 32 or: [ (code between: 127 and: 159) or: [
+   (#(16r2028 16r2029) includes: code) or: [ Unicode is: aCharacter inCategory: 2 ] ] ] ]
 ]
 
 { #category : 'private' }
