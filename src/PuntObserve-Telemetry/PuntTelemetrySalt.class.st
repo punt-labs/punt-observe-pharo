@@ -40,6 +40,11 @@ PuntTelemetrySalt >> publishAt: home [
 
 { #category : 'accessing' }
 PuntTelemetrySalt >> readAt: home [
+ ^ [ self readOnceAt: home ] on: PuntPermissionError do: [ :error | self readOnceAt: home ]
+]
+
+{ #category : 'private' }
+PuntTelemetrySalt >> readOnceAt: home [
  | libc fd bytes |
  home ensureDirectories. libc := PuntLibC new.
  (libc exists: home saltFile) ifFalse: [ self publishAt: home ].

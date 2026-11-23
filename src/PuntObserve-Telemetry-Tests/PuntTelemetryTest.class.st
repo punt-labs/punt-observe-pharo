@@ -218,6 +218,18 @@ PuntTelemetryTest >> testIdentifierBounds [
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testLateSaltPublisherIsRetriedOnce [
+ | paths reader bytes |
+ paths := PuntHome duringHome: home do: [ (PuntHome forTool: 'sample-tool') ensureDirectories ].
+ reader := PuntTestLatePublishedSalt new.
+ bytes := reader readAt: paths.
+ self assert: reader attempts equals: 2.
+ self assert: bytes size equals: 32.
+ self assert: bytes equals: (PuntTelemetrySalt new readAt: paths).
+ self assert: (libc stat: paths saltFile pathString) permissions equals: 8r600
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testMetricOverflowSkipsOnlyTheInvalidPoint [
  | paths exporter now point valid overflow metric snapshot |
  paths := PuntHome duringHome: home do: [ (PuntHome forTool: 'sample-tool') ensureDirectories ].
