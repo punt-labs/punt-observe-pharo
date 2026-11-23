@@ -64,6 +64,17 @@ PuntLibC >> errno [ ^ (Smalltalk os isMacOS ifTrue: [ self macErrnoAddress ] ifF
 PuntLibC >> exclusiveFlag [ ^ Smalltalk os isMacOS ifTrue: [ 16r800 ] ifFalse: [ 16r80 ]
 ]
 
+{ #category : 'testing' }
+PuntLibC >> exists: path [
+ ^ [ self stat: path pathString. true ] on: PuntPermissionError do: [ :error |
+   | parent |
+   parent := self open: path parent pathString flags: self readDirectoryFlags mode: 0.
+   parent < 0 ifTrue: [ error pass ].
+   [ self secure: parent directory: true ] ensure: [ self close: parent ].
+   (path exists or: [ path isSymlink ]) ifTrue: [ error pass ].
+   false ]
+]
+
 { #category : 'ffi' }
 PuntLibC >> fchmod: fd mode: mode [
  ^ self ffiCall: #(int fchmod(int fd, int mode)) library: LibC

@@ -1,6 +1,7 @@
 """Installed-path smoke orchestration and fail-closed inspection, standard library only."""
 
 import base64
+from contextlib import closing, suppress
 import hashlib
 import hmac
 import json
@@ -139,7 +140,7 @@ class Smoke:
         return lines, rows
 
     def inspect_database(self, database, salt, logs, label):
-        with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
+        with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as db:
             integrity = db.execute("PRAGMA integrity_check").fetchone()[0]
             rows = db.execute("SELECT signal, attributes FROM signals").fetchall()
         kinds = {row[0] for row in rows}
@@ -151,7 +152,7 @@ class Smoke:
         blob = database.read_bytes()
         self.check(all(secret not in blob for secret in (*SECRETS, RAW_SUBJECT)), f"{label}: raw identifier and fixture secrets absent from database bytes")
         self.check(all(value not in blob and value not in logs for value in (key, key.hex().encode(), key.hex().upper().encode(), base64.b64encode(key))), f"{label}: salt bytes/hex/base64 absent from database and logs")
-        with sqlite3.connect(database) as probe:
+        with closing(sqlite3.connect(database)) as probe:
             try:
                 probe.execute("BEGIN IMMEDIATE")
                 probe.execute("UPDATE signals SET schema_version=schema_version+1")
@@ -211,12 +212,20 @@ class Smoke:
             report = self.finish(child, drops=True, timeout=15)
             elapsed = time.monotonic() - started
         finally:
-            holder.stdin.close()
-            holder.wait(timeout=5)
-            holder.stdout.close()
-            if child[0].poll() is None:
-                child[0].kill()
-                child[0].wait()
+            with suppress(BrokenPipeError):
+                holder.stdin.close()
+            try:
+                try:
+                    holder.wait(timeout=5)
+                except subprocess.TimeoutExpired as error:
+                    holder.kill()
+                    holder.wait()
+                    raise RuntimeError("flock holder did not terminate") from error
+            finally:
+                holder.stdout.close()
+                if child[0].poll() is None:
+                    child[0].kill()
+                    child[0].wait()
         counts = report["log_drops"]
         self.check(2 < elapsed < 15 and counts["lockTimeout"] == 4 and sum(counts.values()) == 4, f"held-lock: CLI flock held {elapsed:.2f}s; 4 records skipped/count=4; bounded run, no hang")
         self.check((child[1] / "stderr").read_text().count("diagnostic record skipped (lockTimeout)") == 1, "held-lock: one rate-limited metadata-only timeout notice")
@@ -232,7 +241,7 @@ class Smoke:
         self.inspect(home, telemetry=False)
         self.finish(self.launch(name + "-seed", home))
         database = self.paths(home)[1] / "telemetry.db"
-        with sqlite3.connect(f"file:{database}?mode=ro", uri=True) as db:
+        with closing(sqlite3.connect(f"file:{database}?mode=ro", uri=True)) as db:
             seeded = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
         self.check(seeded >= 3, f"{name}: enabled seed run populated existing database")
         before = database.read_bytes()

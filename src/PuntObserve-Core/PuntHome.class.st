@@ -50,7 +50,7 @@ PuntHome >> ensureDirectories [
 { #category : 'initialization' }
 PuntHome >> initializeTool: aString [
  self class validateTool: aString.
- tool := aString.
+ tool := aString copy.
  root := PuntHomeRoot value ifNil: [ FileLocator home asFileReference ].
  libc := PuntLibC new
 ]
@@ -86,8 +86,7 @@ PuntHome >> saltFile [ ^ self labsDirectory / 'telemetry.salt'
 { #category : 'private' }
 PuntHome >> secureDirectory: aFileReference [
  | descriptor |
- (libc mkdir: aFileReference pathString mode: 8r700) = 0 ifFalse: [
-   libc errno = 17 ifFalse: [ PuntPermissionError signal: 'Cannot create private directory' ] ].
+ libc mkdir: aFileReference pathString mode: 8r700.
  descriptor := libc open: aFileReference pathString flags: libc readDirectoryFlags mode: 0.
  descriptor < 0 ifTrue: [ PuntPermissionError signal: 'Cannot open private directory' ].
  [ libc secure: descriptor directory: true ] ensure: [ libc close: descriptor ]

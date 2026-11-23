@@ -25,7 +25,7 @@ without mutating HOME, FileLocator or a process-global class variable. The
 default remains FileLocator home. PuntHome instances snapshot the resolved root;
 future session startup handlers must create fresh authorities.
 
-## DES-003: Bootstrap and Future Packages
+## DES-003: Bootstrap and Installed Packages
 
 **Date:** 2026-11-23
 
@@ -34,8 +34,9 @@ avoiding github archive transport and shallow-history Iceberg failures. The
 SQLite group is Core and OTel groups are traces/metrics, not instrumentation.
 Postern is a development dependency, not a runtime Core dependency.
 Pharo itself follows the official Pharo 12 stable distribution channel.
-Logging and Telemetry build on the private descriptor foundation. Smoke remains
-a later-stage scaffold.
+Logging and Telemetry build on the private descriptor foundation. Smoke is an
+installed CLI package. `make smoke` downloads a new VM/image, installs the
+checkout's baseline and inspects isolated runs without using the dev image.
 
 ## DES-004: Durable Logging Boundary
 
@@ -45,6 +46,14 @@ One PuntLog subscribes only to PuntLogSignal. Explicit field renderers prevent
 arbitrary object printing; errors retain class names only. The formatter renders
 the whole record before the fixed-point redactor admits UTF-8 bytes to the sink.
 No failure path falls back to raw output or emits another signal.
+
+Only primitive numeric classes are printed as scalar field values; an arbitrary
+Number subclass is still an object placeholder. Error payloads retain class
+names, not messageText or stacks. An oversized pre-existing active file or
+backup fails setup without deleting the file; recovery is an explicit owner
+decision. Rotation is not a power-loss transaction and appends do not fsync.
+The acquisition budget is not a deadline for uninterruptible filesystem calls
+or blocked stderr. MCP owners must disable notices; CLI stderr must be consumed.
 
 The sink keeps no native descriptor between appends. A Mutex and stable flock
 protect size checks, rotation and one O_APPEND write; acquisition has one shared
@@ -94,6 +103,18 @@ process. HTTP is bounded to 500 ms with one attempt; SQLite busy timeout is
 Shutdown drains within a 1.9-second budget, then discards and terminates a stalled
 worker. Delivery is deliberately best effort, not a durable queue.
 
+Discarded queued records increment `dropped`; forced interruption also emits a
+fixed rate-limited diagnostic, since delivery of an in-flight export is unknown.
+`dropped` counts admission failures and unprocessed queue discards, not confirmed
+remote delivery failures. Export failures use diagnostics even when the SDK
+returns false instead of raising. These diagnostics require a running PuntLog;
+there is deliberately no raw stderr fallback when logging is absent.
+
+Configuration owns its endpoint string and tool paths own their tool name.
+Partial store/provider initialization and transactions use unwind cleanup, not
+only Error handlers: process termination rolls back transactions and closes
+connections acquired before initialization returned to the worker.
+
 SQLite is pre-created at 0600, uses DELETE journals and transactions, validates
 sidecars, and prunes with incremental vacuum at startup and on the worker timer.
 Its private connection subclass unregisters the native handle from automatic
@@ -130,3 +151,41 @@ one flock hold. The two-second acquisition budget is unchanged.
 Headless gate children omit stock image preferences: concurrent GlobalIdentifier
 preference initialization otherwise races while creating the shared HOME's
 `.config`, before the logger or telemetry code executes.
+
+Directory preparation now attempts mkdir then validates a non-creating
+O_DIRECTORY/O_NOFOLLOW open, regardless of mkdir's result. Shared existence
+checks live in `PuntLibC>>exists:` and preserve metadata failures for existing
+files and dangling symlinks after validating their parent. Salt publication
+always validates the final winner instead of branching on link errno, and
+temporary unlink failure is surfaced. No production decision reads errno in a
+separate FFI call. Existing sidecars use the same existence boundary.
+
+## Clause Traceability
+
+The table maps every Pharo clause to its owning classes and executable gates.
+Selectors below are in the named SUnit class; Python gates inspect files from
+independent images. The gates validate behavior, not merely source citations.
+They are not proofs against hostile code executing within the same image or
+arbitrary replacement of private directories by another process with this UID.
+
+<!-- markdownlint-disable MD013 -->
+| Clause | Implementation | SUnit / installed-image gate |
+| --- | --- | --- |
+| PHARO-LOG-1 | `PuntLogSignal`, `PuntLog`, `PuntLogSourceGate` | `PuntLogTest>>testOnlyTypedSignalsAndSafeErrorFields`, `testReusableSourceGate`; `PuntTelemetryTest>>testSourceGateIncludesExtensions` |
+| PHARO-LOG-2 | `PuntLog` singleton and SessionManager hooks; caller-owned `PuntLogZincBridge` | `PuntLogTest>>testRepeatedStartAndStop`, `testSessionResolvesChangedHome`, `testZincBridgeOwnedAndIdempotent`; `PuntLogSinkTest>>testCloseDrainsActiveCriticalSection` |
+| PHARO-LOG-3 | `PuntHome`, `PuntLibC`, `PuntPrivateFile`, `PuntLogSink` | `PuntHomeTest>>testNewAndExistingDirectoriesArePrivate`, `testDirectorySymlinkRejected`, `testForeignDirectoryOwnerRejected`, `testDeniedDirectoryTightening`, `testExactPathsFromDifferentWorkingDirectories`; `PuntPrivateFileTest>>testFileSymlinkRejected`, `testDeniedFileTightening`; `PuntLogSinkTest>>testExactPathsModesAndExistingBackups` |
+| PHARO-LOG-4 | `PuntLogSink` shared-budget Mutex/flock, one append, rotation | `PuntLogSinkTest>>testHeldFlockTimeoutThenRecovery`, `testLocalMutexHasSameBoundedBudget`, `testMissingBackupIgnoresStaleErrno`, `testFailedMetadataNeverHidesExistingFilesOrSymlinks`, `testOversizedExistingFilesAreNeverDeleted`; `PuntLogTest>>testNegativeWriteResultIsNotPartialWrite`; `PuntLogImagesTest>>testConcurrentImagesAcrossRetentionWindow` / `scripts/logging-images.py`; `scripts/smoke.py` concurrency and CLI-held-lock cases |
+| PHARO-LOG-5 | `PuntLogSignal`, `PuntLogErrorSignal`, `PuntLogRedactor`, `PuntLogRegexMatcher`, `PuntEscaper` | `PuntLogRedactorTest>>testGoPatterns`, `testControlsAndUtf8ByteCap`, `testFailureAndUnsettledWithheld`, `testControlPatternsSurviveTonel`; `PuntLogTest>>testFailuresAreWithheldAndNonRecursive`, `testNumericObjectsAreNeverPrinted`, `testDropAccountingIsCategorizedAndNonRecursive`; smoke secret/control inspection |
+| PHARO-LOG-6 | `PuntLogLevel`, `PuntLogFormatter`, `PuntLogWorkSignal`, `PuntLog` fork/child helpers | `PuntLogTest>>testFormatLevelsAndForgedLines`, `testForkOutcomesAreCorrelated`, `testSinkCapsAndUnicodeControls`; smoke success/fail exit and detached child intent/start/complete checks |
+| PHARO-TEL-1 | `PuntTelemetry`, private `PuntTelemetryPipeline`, `PuntLogSourceGate` | `PuntTelemetryTest>>testSourceGateIncludesNestedProviders`, `testSourceGateIncludesNonClassOtelGlobals`, `testSourceGateIncludesOtelExtensionOwners`, `testSourceGateIncludesExtensions`; `testTypedSignalsAndPrivateRows` |
+| PHARO-TEL-2 | `PuntTelemetrySchema`, `PuntTelemetryField`, `PuntTelemetryRecord`, `PuntTelemetrySalt` | `PuntTelemetryTest>>testRejectionsNeverRaise`, `testIdentifierBounds`, `testQueueCapacityAndHashSnapshot`, `testSaltRaceAndSeparation`, `testSaltRejectsFifoAndEmptyFileWithoutBlocking`, `testTypedSignalsAndPrivateRows`; independent salt race in `scripts/telemetry-images.py`; smoke independently calculates HMAC |
+| PHARO-TEL-3 | `PuntTelemetryStore`, `PuntTelemetryConnection`, `PuntSQLiteSpanExporter`, `PuntSQLiteMetricExporter` | `PuntTelemetryTest>>testPrivateDatabaseAndJournal`, `testStartupAndIdleRetention`, `testConnectionFinalizationIsExactlyOnce`, `testTerminationDuringStoreSetupClosesConnection`, `testTerminatedTransactionRollsBackWithoutClosingStore`; `PuntTelemetryImagesTest>>testIndependentImagesAndBusyTimeout` / `scripts/telemetry-images.py` |
+| PHARO-TEL-4 | `PuntTelemetryConfig`, `PuntTelemetry` session hooks, `PuntTelemetryPipeline` exporter selection | `PuntTelemetryTest>>testConfigurationBoundsAndConsent`, `testConfigurationOwnsEndpointSnapshot`, `testEveryVetoAndSessionReread`, `testOtlpOnlyExplicitConfigWithHashedPayload`; smoke global/tool/config vetoes with empty and seeded HOME |
+| PHARO-TEL-5 | `PuntTelemetryQueue`, `PuntTelemetryWorker`, guarded exporters, `PuntTelemetryDiagnostics` | `PuntTelemetryTest>>testFacadeSaturationDoesNotWaitForExporter`, `testExporterFailureAndBoundedShutdown`, `testUnwritableStoreDoesNotRaiseIntoOperation`, `testDiagnosticsAreFixedAndRateLimited`, `testDiscardCountsEveryQueuedRecord`, `testForcedShutdownCountsQueueAndNoticesInterruption`, `testPartialPipelineSetupClosesStore`; smoke shutdown checks |
+<!-- markdownlint-enable MD013 -->
+
+The static source gate cannot see dynamically constructed global lookups.
+Runtime coverage is Linux x86_64; macOS ABI declarations remain unverified.
+Python image gates refuse optimized execution rather than silently removing
+assertions. Their subprocess cleanup is bounded; SQLite inspector connections
+are explicitly closed instead of relying on transaction contexts or GC.

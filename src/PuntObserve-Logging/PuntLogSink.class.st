@@ -71,14 +71,7 @@ PuntLogSink >> dropCounts [ ^ dropMutex critical: [ dropCounts copy ]
 ]
 
 { #category : 'private' }
-PuntLogSink >> exists: path [
- ^ [ libc stat: path pathString. true ] on: PuntPermissionError do: [ :error |
-   | parent |
-   parent := libc open: path parent pathString flags: libc readDirectoryFlags mode: 0.
-   parent < 0 ifTrue: [ error pass ].
-   [ libc secure: parent directory: true ] ensure: [ libc close: parent ].
-   (path exists or: [ path isSymlink ]) ifTrue: [ error pass ].
-   false ]
+PuntLogSink >> exists: path [ ^ libc exists: path
 ]
 
 { #category : 'private' }
@@ -157,11 +150,9 @@ PuntLogSink >> noticesEnabled: aBoolean [ noticesEnabled := aBoolean
 
 { #category : 'private' }
 PuntLogSink >> prepareActive [
- | file oversized |
+ | file |
  file := PuntPrivateFile open: home logFile.
- oversized := [ file size > self maximumBytes ] ensure: [ file close ].
- oversized ifFalse: [ ^ self ].
- self remove: home logFile. file := PuntPrivateFile open: home logFile. file close
+ [ file size > self maximumBytes ifTrue: [ PuntPermissionError signal: 'Oversized diagnostic file requires explicit recovery' ] ] ensure: [ file close ]
 ]
 
 { #category : 'private' }
@@ -184,7 +175,7 @@ PuntLogSink >> secureBackups [
    path := self backup: index.
    (self exists: path) ifTrue: [
      file := PuntPrivateFile open: path.
-     [ file size > self maximumBytes ifTrue: [ self remove: path ] ] ensure: [ file close ] ] ]
+     [ file size > self maximumBytes ifTrue: [ PuntPermissionError signal: 'Oversized diagnostic backup requires explicit recovery' ] ] ensure: [ file close ] ] ]
 ]
 
 { #category : 'private' }

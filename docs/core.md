@@ -1,5 +1,10 @@
 # Core API
 
+`PuntLibC>>exists:` distinguishes absent paths without a second errno FFI call,
+validates the parent, and preserves failures for existing files and symlinks.
+Directory creation always validates a non-creating directory open. Do not branch
+on `errno` read through a later FFI call: the VM can clobber it between calls.
+
 ## Paths and Lifetime
 
 `PuntHome forTool:` accepts ASCII `[a-z][a-z0-9-]{0,63}`. `ensureDirectories`

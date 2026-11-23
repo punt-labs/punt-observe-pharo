@@ -76,8 +76,8 @@ PuntTelemetryWorker >> shutdown [
  stopping := true. queue close. started := Time millisecondClockValue.
  process ifNotNil: [
    [ process isTerminated not and: [ (Time millisecondsSince: started) < 1900 ] ] whileTrue: [ (Delay forMilliseconds: 5) wait ].
-   process isTerminated ifFalse: [ aborted := true. process terminate ] ].
- queue discard. pipeline := nil. process := nil
+   process isTerminated ifFalse: [ aborted := true. process terminate. PuntTelemetryDiagnostics noteFailure ] ].
+ queue discard > 0 ifTrue: [ PuntTelemetryDiagnostics noteFailure ]. pipeline := nil. process := nil
 ]
 
 { #category : 'operating' }

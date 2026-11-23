@@ -16,6 +16,10 @@ Class {
 	#package : 'PuntObserve-Telemetry-Tests'
 }
 
+{ #category : 'ffi' }
+PuntTelemetryTest class >> makeFifo: path mode: mode [ ^ self ffiCall: #(int mkfifo(String path, int mode)) library: LibC
+]
+
 { #category : 'private' }
 PuntTelemetryTest >> observation [ ^ PuntTestObservation new outcome: #ok; identifier: 'PRIVATE-CUSTOMER-ID'; items: 3; enabled: true; yourself
 ]
@@ -64,6 +68,17 @@ PuntTelemetryTest >> testConfigurationBoundsAndConsent [
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testConfigurationOwnsEndpointSnapshot [
+ | endpoint config snapshot |
+ endpoint := 'http://127.0.0.1:4318' copy.
+ config := PuntTelemetryConfig new otlpConsent: true; otlpEndpoint: endpoint.
+ snapshot := config validatedCopy.
+ endpoint at: 8 put: $e.
+ self assert: snapshot otlpEndpoint equals: 'http://127.0.0.1:4318'.
+ self should: [ config validatedCopy ] raise: Error
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testConnectionFinalizationIsExactlyOnce [
  | db handle |
  db := PuntTelemetryConnection memory.
@@ -89,6 +104,19 @@ PuntTelemetryTest >> testDiagnosticsAreFixedAndRateLimited [
    self assert: signals first message equals: 'Telemetry operation dropped or failed'.
    self deny: (signals first printString includesSubstring: 'PRIVATE')
  ] ensure: [ Beacon instance unsubscribe: signals ]
+]
+
+{ #category : 'tests' }
+PuntTelemetryTest >> testDiscardCountsEveryQueuedRecord [
+ | queue |
+ queue := PuntTelemetryQueue new.
+ self assert: queue discard equals: 0.
+ 3 timesRepeat: [ self assert: (queue push: #record) ].
+ queue close.
+ self assert: queue discard equals: 3.
+ self assert: queue dropped equals: 3.
+ self assert: queue discard equals: 0.
+ self assert: queue dropped equals: 3
 ]
 
 { #category : 'tests' }
@@ -144,6 +172,25 @@ PuntTelemetryTest >> testFacadeSaturationDoesNotWaitForExporter [
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testForcedShutdownCountsQueueAndNoticesInterruption [
+ | stalled worker signals |
+ self start: PuntTelemetryConfig new.
+ stalled := PuntTestStalledSpanExporter new.
+ worker := telemetry worker.
+ worker pipeline spanExporter delegate: stalled.
+ self recordEventually: (self observation identifier: nil). self deny: (stalled entered waitTimeoutMilliseconds: 5000).
+ 3 timesRepeat: [ self assert: (telemetry record: (self observation identifier: nil)) ].
+ signals := OrderedCollection new. PuntTelemetryDiagnostics resetSession.
+ Beacon instance announcer when: PuntLogSignal do: [ :signal | signals add: signal ] for: signals.
+ [ telemetry shutdown.
+   self assert: telemetry dropped equals: 3.
+   self assert: telemetry queue isEmpty.
+   self assert: worker process isNil.
+   self assert: signals size equals: 1
+ ] ensure: [ stalled release. Beacon instance unsubscribe: signals ]
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testIdentifierBounds [
  | field |
  field := PuntTelemetryField kind: #identifier required: true.
@@ -174,6 +221,16 @@ PuntTelemetryTest >> testOtlpOnlyExplicitConfigWithHashedPayload [
    [ payloads isEmpty ] whileFalse: [ | bytes | bytes := payloads next asString.
      self deny: (bytes includesSubstring: 'PRIVATE-CUSTOMER-ID'). self assert: (bytes includesSubstring: hash) ]
  ] ensure: [ server stop ]
+]
+
+{ #category : 'tests' }
+PuntTelemetryTest >> testPartialPipelineSetupClosesStore [
+ | pipeline paths |
+ paths := PuntHome duringHome: home do: [ PuntHome forTool: 'sample-tool' ].
+ pipeline := PuntTestBrokenPipeline new.
+ [ self should: [ pipeline home: paths config: PuntTelemetryConfig new ] raise: Error.
+   self assert: pipeline store connection isNil
+ ] ensure: [ pipeline abort ]
 ]
 
 { #category : 'tests' }
@@ -241,6 +298,20 @@ PuntTelemetryTest >> testSaltRaceAndSeparation [
 ]
 
 { #category : 'tests' }
+PuntTelemetryTest >> testSaltRejectsFifoAndEmptyFileWithoutBlocking [
+ | paths started |
+ paths := PuntHome duringHome: home do: [ (PuntHome forTool: 'sample-tool') ensureDirectories ].
+ self assert: (self class makeFifo: paths saltFile pathString mode: 8r600) equals: 0.
+ started := Time millisecondClockValue.
+ self should: [ PuntTelemetrySalt new readAt: paths ] raise: PuntPermissionError.
+ self assert: (Time millisecondsSince: started) < 1000.
+ paths saltFile delete.
+ (PuntPrivateFile open: paths saltFile) close.
+ self should: [ PuntTelemetrySalt new readAt: paths ] raise: PuntPermissionError.
+ self assert: (libc stat: paths saltFile pathString) size equals: 0
+]
+
+{ #category : 'tests' }
 PuntTelemetryTest >> testSourceGateIncludesExtensions [
  | method |
  method := Object compile: 'puntTelemetryGateProbe ^ OTTracerProvider new' classified: '*PuntObserve-Telemetry-Tests'.
@@ -293,6 +364,32 @@ PuntTelemetryTest >> testStartupAndIdleRetention [
  db := PuntTelemetryConnection openOn: telemetry home databaseFile pathString.
  [ db basicExecute: 'INSERT INTO signals VALUES (''event'',''sample-tool.cli.test'',1,0,0,NULL,NULL,NULL,NULL,NULL,''{}'',NULL)' ] ensure: [ db forceClose ].
  self waitUntil: [ self rows isEmpty ]
+]
+
+{ #category : 'tests' }
+PuntTelemetryTest >> testTerminatedTransactionRollsBackWithoutClosingStore [
+ | process entered paths |
+ paths := PuntHome duringHome: home do: [ PuntHome forTool: 'sample-tool' ].
+ store := PuntTelemetryStore new home: paths retentionDays: 90.
+ entered := Semaphore new.
+ process := [ store transaction: [
+   store connection basicExecute: 'INSERT INTO signals VALUES (''event'',''sample-tool.cli.test'',1,0,0,NULL,NULL,NULL,NULL,NULL,''{}'',NULL)'.
+   entered signal. Semaphore new wait ] ] fork.
+ [ self deny: (entered waitTimeoutMilliseconds: 5000). process terminate.
+   self assert: store connection getAutoCommit.
+   self assert: self rows isEmpty
+ ] ensure: [ process terminate ]
+]
+
+{ #category : 'tests' }
+PuntTelemetryTest >> testTerminationDuringStoreSetupClosesConnection [
+ | process paths |
+ paths := PuntHome duringHome: home do: [ PuntHome forTool: 'sample-tool' ].
+ store := PuntTestPausedStore new.
+ process := [ store home: paths retentionDays: 90 ] fork.
+ [ self deny: (store entered waitTimeoutMilliseconds: 5000). process terminate.
+   self assert: store connection isNil
+ ] ensure: [ process terminate. store close ]
 ]
 
 { #category : 'tests' }

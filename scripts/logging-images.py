@@ -9,17 +9,30 @@ import subprocess
 import sys
 import time
 
+if not __debug__:
+    raise RuntimeError("Image gates require enabled assertions")
+
 
 def smalltalk_string(value):
     return "'" + str(value).replace("'", "''") + "'"
 
 
 def main():
+    processes = []
+    try:
+        run(processes)
+    finally:
+        for process in processes:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+
+
+def run(processes):
     vm, image, directory = sys.argv[1:]
     root = Path(directory)
     home = root / "image-home"
     home.mkdir()
-    processes = []
     payload = " ".join(["p" * 93] * 500)
     for worker in range(2):
         script = root / f"writer-{worker}.st"
@@ -52,15 +65,14 @@ Smalltalk exit: 0.
         env["HOME"] = str(home)
         if sys.platform.startswith("linux"):
             env["LD_LIBRARY_PATH"] = str(Path(vm).parent) + os.pathsep + env.get("LD_LIBRARY_PATH", "")
-        processes.append(
-            subprocess.Popen(
+        with (root / f"stderr-{worker}.log").open("wb") as stderr:
+            processes.append(subprocess.Popen(
                 [vm, "--headless", image, "--no-default-preferences", "st", str(script)],
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
-                stderr=(root / f"stderr-{worker}.log").open("wb"),
-            )
-        )
+                stderr=stderr,
+            ))
     try:
         deadline = time.monotonic() + 45
         while not all((root / f"ready-{worker}").exists() for worker in range(2)):

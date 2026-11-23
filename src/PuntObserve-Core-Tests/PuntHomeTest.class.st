@@ -69,6 +69,17 @@ PuntHomeTest >> testExactPathsFromDifferentWorkingDirectories [
 ]
 
 { #category : 'tests' }
+PuntHomeTest >> testExistingDirectoriesIgnoreStaleErrnoAndCopyTool [
+ | name paths |
+ name := 'sample-tool' copy.
+ paths := PuntHome duringHome: home do: [ PuntHome forTool: name ].
+ paths ensureDirectories. paths libc: PuntStaleErrnoLibC new. paths ensureDirectories.
+ name at: 1 put: $x.
+ self assert: paths tool equals: 'sample-tool'.
+ self assert: (libc stat: paths logsDirectory pathString) permissions equals: 8r700
+]
+
+{ #category : 'tests' }
 PuntHomeTest >> testFileInPlaceOfDirectoryRejected [
  (home / '.punt-labs') writeStreamDo: [ :stream | stream nextPutAll: 'not a directory' ].
  self withHomeDo: [ :paths | self should: [ paths ensureDirectories ] raise: PuntPermissionError ]

@@ -4,8 +4,7 @@
 It checks success/failure outcomes, detached child correlation, concurrent
 rotation, bounded lock drops and recovery, telemetry privacy, and all off
 switches. Linux requires `python3`, `stat`, `flock` and `setsid`. Artifacts and
-the
-fresh installed image remain under the printed `.tmp/smoke-*` directory.
+the fresh installed image remain under the printed `.tmp/smoke-*` directory.
 See the [smoke guide](docs/smoke.md) for the entry point and artifact layout.
 
 > Private, durable diagnostics for Punt Labs Pharo tools.
@@ -46,8 +45,10 @@ Metacello new baseline: 'PuntObserve'; repository: 'tonel:///absolute/path/to/pu
 - `PuntTelemetryConfig`: retention, off switches and explicit OTLP consent.
 
 Paths resolve beneath `FileLocator home / '.punt-labs'`, never the working
-directory. Permission failures signal `PuntPermissionError`; callers must not
-fall back to an insecure location.
+directory. Core permission failures signal `PuntPermissionError`; callers must
+not fall back to an insecure location. Logging write failures are counted and
+noticed; telemetry admission returns false and exporter failures produce fixed,
+rate-limited diagnostics. Neither mechanism guarantees delivery.
 
 ## Documentation
 

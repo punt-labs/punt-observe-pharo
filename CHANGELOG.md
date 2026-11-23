@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Review and harden loss accounting, unwind cleanup, configuration snapshots,
+  private path races and scalar printing; add clause-to-test traceability.
 - Add the installed-path smoke entry point, fresh-image runner, strict inspector
   and independent CI smoke job.
 - Stop absent-backup detection from consulting clobbered FFI errno; validate the

@@ -27,7 +27,8 @@ PuntTelemetryQueue >> close [ mutex critical: [ accepting := false ]. wake signa
 ]
 
 { #category : 'operating' }
-PuntTelemetryQueue >> discard [ mutex critical: [ items removeAll ]
+PuntTelemetryQueue >> discard [
+ ^ mutex critical: [ | count | count := items size. items removeAll. dropped := dropped + count. count ]
 ]
 
 { #category : 'operating' }

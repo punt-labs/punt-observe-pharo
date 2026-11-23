@@ -1,5 +1,12 @@
 # Durable diagnostics
 
+Oversized pre-existing active files or backups fail setup without deletion;
+recover them explicitly before retrying. One append write is not an fsync or a
+power-loss guarantee. Scalar fields print only primitive numeric/Boolean/nil
+values; other objects, including arbitrary Number subclasses, are placeholders.
+Callers own the lifetimes of forked application work and optional Zinc bridges.
+Stopping the logger drains its sink, not arbitrary application processes.
+
 `PuntLog current dropCounts` returns a copy of the sink's per-image counters:
 `#lockTimeout`, `#shortWrite`, `#ioFailure`, `#redactorWithhold`, `#recordFailure`,
 `#invalidRecord` and `#closed`. Every dropped record is counted, even when the

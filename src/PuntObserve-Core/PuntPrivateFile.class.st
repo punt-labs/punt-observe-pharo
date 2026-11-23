@@ -29,6 +29,7 @@ PuntPrivateFile >> append: aByteArray [
  | written |
  self isOpen ifFalse: [ PuntPermissionError signal: 'Private file is closed' ].
  written := libc write: descriptor bytes: aByteArray count: aByteArray size.
+ written < 0 ifTrue: [ PuntPermissionError signal: 'Private append failed' ].
  written = aByteArray size ifFalse: [ PuntShortWriteError signal: 'Private append incomplete' ].
  ^ written
 ]

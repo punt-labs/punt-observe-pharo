@@ -123,3 +123,17 @@ PuntLogSinkTest >> testMissingBackupIgnoresStaleErrno [
  self deny: (sink exists: (sink backup: 1)).
  self assert: (sink exists: sink home logFile)
 ]
+
+{ #category : 'tests' }
+PuntLogSinkTest >> testOversizedExistingFilesAreNeverDeleted [
+ | paths bytes |
+ paths := PuntHome duringHome: home do: [ (PuntHome forTool: 'sample-tool') ensureDirectories ].
+ bytes := ByteArray new: 5242881.
+ { paths logFile. paths logsDirectory / 'sample-tool.log.1' } do: [ :path |
+   | file |
+   file := PuntPrivateFile open: path.
+   [ file append: bytes ] ensure: [ file close ].
+   self should: [ PuntHome duringHome: home do: [ PuntLogSink forTool: 'sample-tool' ] ] raise: PuntPermissionError.
+   self assert: (libc stat: path pathString) size equals: bytes size.
+   path delete ]
+]

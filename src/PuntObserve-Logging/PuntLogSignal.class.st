@@ -61,6 +61,6 @@ PuntLogSignal >> printOneLineContentsOn: aStream [
 { #category : 'private' }
 PuntLogSignal >> safeString: anObject [
  anObject isString ifTrue: [ ^ anObject ].
- (anObject isNumber or: [ anObject isNil or: [ #(True False) includes: anObject class name ] ]) ifTrue: [ ^ anObject asString ].
+ (#(SmallInteger LargePositiveInteger LargeNegativeInteger SmallFloat64 BoxedFloat64 True False UndefinedObject) includes: anObject class name) ifTrue: [ ^ anObject asString ].
  ^ '[object]'
 ]

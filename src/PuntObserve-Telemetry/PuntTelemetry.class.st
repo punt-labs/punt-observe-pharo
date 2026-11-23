@@ -33,7 +33,10 @@ PuntTelemetry class >> guard [ ^ Guard ifNil: [ Guard := Mutex new ]
 ]
 
 { #category : 'recording' }
-PuntTelemetry class >> record: observation [ ^ Current ifNil: [ false ] ifNotNil: [ Current record: observation ]
+PuntTelemetry class >> record: observation [
+ | current |
+ current := Current.
+ ^ current ifNil: [ false ] ifNotNil: [ current record: observation ]
 ]
 
 { #category : 'system startup' }

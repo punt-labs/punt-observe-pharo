@@ -102,7 +102,7 @@ PuntLog class >> startTool: aString role: aRole level: aLevel [
      | logger |
      logger := self new.
      logger tool: aString; level: aLevel.
-     Tool := aString. Role := aRole. Threshold := aLevel.
+     Tool := aString copy. Role := aRole. Threshold := aLevel.
      Current := logger.
      self registerSession.
      logger start ].

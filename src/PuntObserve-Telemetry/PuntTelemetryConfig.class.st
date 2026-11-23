@@ -76,6 +76,15 @@ PuntTelemetryConfig >> retentionDays: anObject [ retentionDays := anObject
 PuntTelemetryConfig >> usesOtlp [ ^ otlpConsent and: [ otlpEndpoint notNil ]
 ]
 
+{ #category : 'validation' }
+PuntTelemetryConfig >> validate [
+ (retentionDays isInteger and: [ retentionDays between: 1 and: 3650 ]) ifFalse: [ self error: 'Invalid retention' ].
+ (maintenanceSeconds isInteger and: [ maintenanceSeconds between: 1 and: 3600 ]) ifFalse: [ self error: 'Invalid maintenance interval' ].
+ (#(True False) includes: disabled class name) ifFalse: [ self error: 'Invalid disabled flag' ].
+ (#(True False) includes: otlpConsent class name) ifFalse: [ self error: 'Invalid consent flag' ].
+ otlpEndpoint ifNotNil: [ self validateEndpoint ]
+]
+
 { #category : 'private' }
 PuntTelemetryConfig >> validateEndpoint [
  | url |
@@ -88,10 +97,9 @@ PuntTelemetryConfig >> validateEndpoint [
 
 { #category : 'validation' }
 PuntTelemetryConfig >> validatedCopy [
- (retentionDays isInteger and: [ retentionDays between: 1 and: 3650 ]) ifFalse: [ self error: 'Invalid retention' ].
- (maintenanceSeconds isInteger and: [ maintenanceSeconds between: 1 and: 3600 ]) ifFalse: [ self error: 'Invalid maintenance interval' ].
- (#(True False) includes: disabled class name) ifFalse: [ self error: 'Invalid disabled flag' ].
- (#(True False) includes: otlpConsent class name) ifFalse: [ self error: 'Invalid consent flag' ].
- otlpEndpoint ifNotNil: [ self validateEndpoint ].
- ^ self copy
+ | config |
+ config := self copy.
+ config otlpEndpoint: (config otlpEndpoint ifNotNil: [ :endpoint | endpoint copy ]).
+ config validate.
+ ^ config
 ]

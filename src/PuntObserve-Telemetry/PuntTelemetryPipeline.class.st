@@ -61,13 +61,14 @@ PuntTelemetryPipeline >> configureProvidersFor: tool [
 
 { #category : 'initialization' }
 PuntTelemetryPipeline >> home: home config: config [
- config usesOtlp ifTrue: [ self configureOtlp: config ] ifFalse: [
-   store := PuntTelemetryStore new home: home retentionDays: config retentionDays.
-   spanExporter := PuntSQLiteSpanExporter new store: store.
-   metricExporter := PuntSQLiteMetricExporter new store: store ].
- spanExporter := PuntTelemetrySpanExporter new delegate: spanExporter.
- metricExporter := PuntTelemetryMetricExporter new delegate: metricExporter.
- self configureProvidersFor: home tool.
+ [ config usesOtlp ifTrue: [ self configureOtlp: config ] ifFalse: [
+     store := PuntTelemetryStore new home: home retentionDays: config retentionDays.
+     spanExporter := PuntSQLiteSpanExporter new store: store.
+     metricExporter := PuntSQLiteMetricExporter new store: store ].
+   spanExporter := PuntTelemetrySpanExporter new delegate: spanExporter.
+   metricExporter := PuntTelemetryMetricExporter new delegate: metricExporter.
+   self configureProvidersFor: home tool
+ ] ifCurtailed: [ self abort ].
  ^ self
 ]
 

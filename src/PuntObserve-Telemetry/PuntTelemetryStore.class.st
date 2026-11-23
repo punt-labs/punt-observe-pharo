@@ -34,7 +34,7 @@ PuntTelemetryStore >> home: aHome retentionDays: retention [
  home := aHome. days := retention.
  home ensureDirectories. self secureFiles.
  connection := PuntTelemetryConnection on: home databaseFile pathString.
- [ connection open. self prepare. self prune ] on: Error do: [ :error | self close. error pass ].
+ [ connection open. self prepare. self prune ] ifCurtailed: [ self close ].
  ^ self
 ]
 
@@ -82,10 +82,9 @@ PuntTelemetryStore >> secureFiles [
  file := PuntPrivateFile open: home databaseFile. file close.
  libc := PuntLibC new.
  #('-journal' '-wal' '-shm') do: [ :suffix |
-   | path exists |
+   | path |
    path := (String streamContents: [ :stream | stream nextPutAll: home databaseFile pathString; nextPutAll: suffix ]) asFileReference.
-   exists := [ libc stat: path pathString. true ] on: PuntPermissionError do: [ :error | libc errno = 2 ifTrue: [ false ] ifFalse: [ error pass ] ].
-   exists ifTrue: [ file := PuntPrivateFile open: path. file close ] ]
+   (libc exists: path) ifTrue: [ file := PuntPrivateFile open: path. file close ] ]
 ]
 
 { #category : 'converting' }
@@ -102,6 +101,6 @@ PuntTelemetryStore >> spanValues: span [
 { #category : 'operating' }
 PuntTelemetryStore >> transaction: aBlock [
  connection basicExecute: 'BEGIN IMMEDIATE'.
- [ aBlock value. connection basicExecute: 'COMMIT' ] on: Error do: [ :error |
-   connection basicExecute: 'ROLLBACK'. error pass ]
+ [ aBlock value. connection basicExecute: 'COMMIT' ]
+   ifCurtailed: [ connection basicExecute: 'ROLLBACK' ]
 ]

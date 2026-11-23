@@ -1,6 +1,7 @@
 """PHARO-TEL-2/3: independent image salt, SQLite contention and integrity gate."""
 
 import hashlib
+from contextlib import closing
 import hmac
 import json
 import os
@@ -10,6 +11,9 @@ import stat
 import subprocess
 import sys
 import time
+
+if not __debug__:
+    raise RuntimeError("Image gates require enabled assertions")
 
 
 def literal(value):
@@ -25,11 +29,21 @@ def until(predicate, processes, seconds=45):
 
 
 def main():
+    children = []
+    try:
+        run(children)
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+
+
+def run(children):
     vm, image, directory = sys.argv[1:]
     root = Path(directory)
     home = root / "telemetry-home"
     home.mkdir()
-    children = []
     for worker in range(2):
         script = root / f"telemetry-{worker}.st"
         script.write_text(f"""| telemetry started elapsed |
@@ -70,7 +84,7 @@ Smalltalk exit: 0
     try:
         until(lambda: all((root / f"ready-tel-{i}").exists() for i in range(2)), children)
         database = home / ".punt-labs/sample-tool/telemetry.db"
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection:
             connection.execute("BEGIN IMMEDIATE")
             (root / "go-tel").touch()
             until(lambda: all((root / f"elapsed-{i}").exists() for i in range(2)), children)
@@ -83,7 +97,7 @@ Smalltalk exit: 0
             code = child.wait(timeout=60)
             error = root / f"error-{worker}"
             assert code == 0, error.read_text() if error.exists() else f"child exited: {code}"
-        with sqlite3.connect(database) as connection:
+        with closing(sqlite3.connect(database)) as connection:
             assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
             assert connection.execute("PRAGMA journal_mode").fetchone() == ("delete",)
             rows = connection.execute("SELECT attributes FROM signals").fetchall()

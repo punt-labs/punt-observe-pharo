@@ -113,6 +113,24 @@ PuntLogTest >> testFormatLevelsAndForgedLines [
 ]
 
 { #category : 'tests' }
+PuntLogTest >> testNegativeWriteResultIsNotPartialWrite [
+ self start.
+ logger sink libc: (PuntTestWriteFailureLibC new kind: #negativeResult).
+ self emit: 'write-failed'.
+ self assert: (logger dropCounts at: #ioFailure) equals: 1.
+ self assert: (logger dropCounts at: #shortWrite) equals: 0.
+ self assert: self contents isEmpty
+]
+
+{ #category : 'tests' }
+PuntLogTest >> testNumericObjectsAreNeverPrinted [
+ self assert: (PuntLogSignal new safeString: PuntTestPrintableNumber new) equals: '[object]'.
+ self assert: (PuntLogSignal new safeString: 42) equals: '42'.
+ self assert: (PuntLogSignal new safeString: 1.5) equals: '1.5'.
+ self assert: (PuntLogSignal new safeString: nil) equals: 'nil'
+]
+
+{ #category : 'tests' }
 PuntLogTest >> testOnlyTypedSignalsAndSafeErrorFields [
  self start.
  'x' emit.

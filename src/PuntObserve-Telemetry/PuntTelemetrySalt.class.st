@@ -34,18 +34,16 @@ PuntTelemetrySalt >> publishAt: home [
  descriptor < 0 ifTrue: [ PuntPermissionError signal: 'Cannot prepare private salt' ].
  [ [ | bytes | libc secure: descriptor directory: false. bytes := self entropy.
      (libc write: descriptor bytes: bytes count: 32) = 32 ifFalse: [ PuntPermissionError signal: 'Cannot write private salt' ] ] ensure: [ libc close: descriptor ].
-   (libc link: temporary pathString to: home saltFile pathString) = 0 ifFalse: [
-     libc errno = 17 ifFalse: [ PuntPermissionError signal: 'Cannot publish private salt' ] ]
- ] ensure: [ libc unlink: temporary pathString ]
+   libc link: temporary pathString to: home saltFile pathString
+ ] ensure: [ (libc unlink: temporary pathString) = 0 ifFalse: [ PuntPermissionError signal: 'Cannot remove temporary salt' ] ]
 ]
 
 { #category : 'accessing' }
 PuntTelemetrySalt >> readAt: home [
  | libc fd bytes |
  home ensureDirectories. libc := PuntLibC new.
- [ libc stat: home saltFile pathString ] on: PuntPermissionError do: [ :error |
-   libc errno = 2 ifTrue: [ self publishAt: home ] ifFalse: [ error pass ] ].
- fd := libc open: home saltFile pathString flags: libc noFollowFlag mode: 0.
+ (libc exists: home saltFile) ifFalse: [ self publishAt: home ].
+ fd := libc open: home saltFile pathString flags: (libc noFollowFlag bitOr: libc nonBlockingFlag) mode: 0.
  fd < 0 ifTrue: [ PuntPermissionError signal: 'Cannot read private salt' ].
  bytes := ByteArray new: 32.
  [ libc secure: fd directory: false.

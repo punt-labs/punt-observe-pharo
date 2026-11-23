@@ -20,6 +20,7 @@ PuntTestWriteFailureLibC >> kind: aSymbol [ kind := aSymbol
 
 { #category : 'ffi' }
 PuntTestWriteFailureLibC >> write: fd bytes: bytes count: count [
+ kind = #negativeResult ifTrue: [ ^ -1 ].
  kind = #shortWrite ifTrue: [ ^ count - 1 ].
  PuntPermissionError signal: 'Synthetic private write failure'
 ]

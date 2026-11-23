@@ -63,7 +63,11 @@ true for admission, not delivery; unknown classes/versions, invalid fields,
 disabled telemetry, closed/full queues and operational errors return false
 without raising into the operation. A worker exporter failure cannot change an
 already returned admission result. The queue holds at most 1024 records and
-never waits for room. Shutdown is bounded; remaining records may be discarded.
+never waits for room. Shutdown is bounded; remaining queued records are counted
+as dropped when discarded. Forced interruption emits a fixed diagnostic because
+in-flight delivery is unknown. `dropped` is not an exporter-delivery counter.
+Exporter failures use rate-limited diagnostics through a running PuntLog, with
+no raw-output fallback. Configuration snapshots copy the endpoint string.
 
 Class-side lifecycle is `startTool:config:schemas:`, `record:`, `shutdown` and
 `current`. An instance also answers `record:`, `shutdown`, `isEnabled`, `dropped`.
