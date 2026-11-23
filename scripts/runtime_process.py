@@ -32,10 +32,14 @@ def verified_fd(record, image, port, require_command=True):
         raise ValueError("Invalid PID")
     descriptor = os.pidfd_open(pid)
     try:
-        if (identity(pid) != {key: record[key] for key in ("pid", "start", "boot")}
-                or record["image"] != str(image.resolve()) or record["port"] != port
-                or (require_command and not matches_command(pid, image, port))):
-            raise ValueError("Process identity mismatch")
+        try:
+            if (identity(pid) != {key: record[key] for key in ("pid", "start", "boot")}
+                    or record["image"] != str(image.resolve()) or record["port"] != port
+                    or (require_command and not matches_command(pid, image, port))):
+                raise ValueError("Process identity mismatch")
+        except FileNotFoundError:
+            signal.pidfd_send_signal(descriptor, 0)
+            raise
         signal.pidfd_send_signal(descriptor, 0)
         return descriptor
     except BaseException:
@@ -73,13 +77,20 @@ def manage(operation, pidfile, image, port, pid=None):
     if not pidfile.exists() and operation in ("stop", "abort"):
         return
     record = json.loads(pidfile.read_text())
-    descriptor = verified_fd(record, image, port, require_command=operation != "abort")
+    descriptor = None
     try:
+        try:
+            descriptor = verified_fd(record, image, port, require_command=operation != "abort")
+            if operation != "check":
+                signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+        except ProcessLookupError:
+            if operation != "stop":
+                raise
         if operation != "check":
-            signal.pidfd_send_signal(descriptor, signal.SIGTERM)
             pidfile.unlink()
     finally:
-        os.close(descriptor)
+        if descriptor is not None:
+            os.close(descriptor)
 
 
 def main():
