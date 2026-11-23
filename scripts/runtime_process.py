@@ -19,11 +19,13 @@ def matches_command(pid, image, port):
     arguments = directory.joinpath("cmdline").read_bytes().decode().split("\0")
     cwd = directory.joinpath("cwd").resolve()
     prefix = "PosternServer startOn: "
+    suffix = " withAuth: true"
     return (directory.joinpath("exe").resolve().name == "pharo"
             and any((cwd / argument).resolve() == image.resolve()
                     for argument in arguments if argument.endswith(".image"))
-            and any(argument.startswith(prefix) and argument[len(prefix):].isdigit()
-                    and int(argument[len(prefix):]) == port for argument in arguments))
+            and any(argument.startswith(prefix) and argument.endswith(suffix)
+                    and argument[len(prefix):-len(suffix)].isdigit()
+                    and int(argument[len(prefix):-len(suffix)]) == port for argument in arguments))
 
 
 def verified_fd(record, image, port, require_command=True):
