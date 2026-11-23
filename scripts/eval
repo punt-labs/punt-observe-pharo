@@ -1,8 +1,6 @@
 #!/bin/sh
 set -eu
-root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-token=$(cat "${EVAL_TOKEN_FILE:-$root/.tmp/eval-token}")
-result=$(printf 'header = "X-Eval-Token: %s"\n' "$token" | curl --config - --fail --silent --show-error --max-time 300 \
+result=$(curl --fail --silent --show-error --max-time 300 \
     -X POST "http://localhost:${PORT:-8430}/repl" \
     -H 'Content-Type: text/plain' --data-binary "@$1")
 printf '%s\n' "$result"

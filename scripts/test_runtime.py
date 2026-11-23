@@ -1,12 +1,10 @@
 """Process-incarnation safety without starting another Pharo image."""
 
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
 from pathlib import Path
 import signal
 import subprocess
-from threading import Thread
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -34,40 +32,6 @@ class RuntimeProcessTest(unittest.TestCase):
     def test_empty_stop_is_idempotent(self):
         runtime.manage("stop", self.pidfile, self.image, 8430)
         runtime.manage("stop", self.pidfile, self.image, 8430)
-
-    def test_eval_sends_token_without_putting_it_in_curl_arguments(self):
-        token = "private-test-token"
-
-        class Handler(BaseHTTPRequestHandler):
-            def do_POST(self):
-                self.rfile.read(int(self.headers["Content-Length"]))
-                self.send_response(200 if self.headers.get("X-Eval-Token") == token else 401)
-                self.end_headers()
-                self.wfile.write(b"PUNT-OK")
-
-            def log_message(self, *args):
-                pass
-
-        server = HTTPServer(("127.0.0.1", 0), Handler)
-        self.addCleanup(server.server_close)
-        thread = Thread(target=server.serve_forever)
-        thread.start()
-        try:
-            source = Path(self.directory.name) / "eval.st"
-            source.write_text("'PUNT-OK'")
-            tokenfile = Path(self.directory.name) / "token"
-            tokenfile.write_text(token)
-            environment = os.environ | {"PORT": str(server.server_port), "EVAL_TOKEN_FILE": str(tokenfile)}
-            script = Path(__file__).resolve().parent / "eval"
-            result = subprocess.run(["sh", str(script), str(source)], env=environment, capture_output=True, text=True, timeout=5)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            tokenfile.write_text("wrong-token")
-            result = subprocess.run(["sh", str(script), str(source)], env=environment, capture_output=True, timeout=5)
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("--config -", script.read_text())
-        finally:
-            server.shutdown()
-            thread.join()
 
     def test_invalid_or_legacy_record_never_signals(self):
         for contents in ("12345", "not-json", "{}", '{"pid": -1}'):
