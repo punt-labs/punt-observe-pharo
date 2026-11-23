@@ -119,6 +119,14 @@ PuntHomeTest >> testOverrideRestoredAfterFailure [
  self assert: (PuntHome forTool: 'sample-tool') root equals: original
 ]
 
+{ #category : 'tests' }
+PuntHomeTest >> testStatSymbolsMatchDarwinInode64Layout [
+ #('fstat' 'lstat') do: [ :name |
+   self assert: (libc statSymbol: name macOS: true architecture: 'x86_64') equals: (String streamContents: [ :stream | stream nextPutAll: name; nextPutAll: '$INODE64' ]).
+   self assert: (libc statSymbol: name macOS: true architecture: 'arm64') equals: name.
+   self assert: (libc statSymbol: name macOS: false architecture: 'x86_64') equals: name ]
+]
+
 { #category : 'private' }
 PuntHomeTest >> withHomeDo: aBlock [ ^ PuntHome duringHome: home do: [ aBlock value: (PuntHome forTool: 'sample-tool') ]
 ]

@@ -26,12 +26,12 @@ PuntLibC >> basicFlock: fd operation: operation [
 
 { #category : 'ffi' }
 PuntLibC >> basicFstat: fd into: buffer [
- ^ self ffiCall: #(int fstat(int fd, void* buffer)) library: LibC
+ ^ self ffiCall: { #int. self statSymbol: 'fstat'. #(int fd , void* buffer) } library: LibC
 ]
 
 { #category : 'ffi' }
 PuntLibC >> basicLstat: path into: buffer [
- ^ self ffiCall: #(int lstat(String path, void* buffer)) library: LibC
+ ^ self ffiCall: { #int. self statSymbol: 'lstat'. #(String path , void* buffer) } library: LibC
 ]
 
 { #category : 'ffi' }
@@ -180,6 +180,17 @@ PuntLibC >> secure: aDescriptor directory: aBoolean [
 
 { #category : 'accessing' }
 PuntLibC >> stat: aPath [ ^ self metadataUsing: [ :buffer | self basicLstat: aPath into: buffer ]
+]
+
+{ #category : 'private' }
+PuntLibC >> statSymbol: name [
+ ^ self statSymbol: name macOS: Smalltalk os isMacOS architecture: Smalltalk vm architectureName
+]
+
+{ #category : 'private' }
+PuntLibC >> statSymbol: name macOS: mac architecture: architecture [
+ ^ (mac and: [ #('x86_64' 'x64') includes: architecture asString ])
+   ifTrue: [ name , '$INODE64' ] ifFalse: [ name ]
 ]
 
 { #category : 'ffi' }
