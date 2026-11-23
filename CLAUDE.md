@@ -22,7 +22,8 @@ tests. Both fail nonzero on evaluation errors, empty selection or findings.
 
 ## Scope
 
-Core only is implemented. Logging, telemetry and smoke packages are empty
-scaffolds for later stages; do not claim their behavior exists.
+Core and Logging are implemented. Telemetry and Smoke remain scaffolds for
+later stages; do not claim their behavior exists.
 Do not install global providers. Resolve home again after image restoration.
-Follow [DESIGN.md](DESIGN.md) and [Core API](docs/core.md) for ABI and ownership.
+Follow [DESIGN.md](DESIGN.md), [Core API](docs/core.md), and
+[Logging API](docs/logging.md) for ownership and lifecycle.

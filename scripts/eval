@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-result=$(curl --fail --silent --show-error --max-time 120 \
+result=$(curl --fail --silent --show-error --max-time 300 \
     -X POST "http://localhost:${PORT:-8430}/repl" \
     -H 'Content-Type: text/plain' --data-binary "@$1")
 printf '%s\n' "$result"
