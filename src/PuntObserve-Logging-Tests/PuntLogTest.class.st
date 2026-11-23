@@ -90,6 +90,19 @@ PuntLogTest >> testDropAccountingIsCategorizedAndNonRecursive [
 ]
 
 { #category : 'tests' }
+PuntLogTest >> testDurableLiteralEscapesCannotSplitCredentials [
+ | text |
+ self start.
+ #('Cookie: a=SECRET\x0ab=OTHER' 'password=PART1\x09PART2' 'password=PART1\\PART2') do: [ :input | self emit: input ].
+ text := self contents.
+ self assert: text lines size equals: 3.
+ #('SECRET' 'OTHER' 'PART1' 'PART2') do: [ :secret | self deny: (text includesSubstring: secret) ].
+ self emit: 'literal \\'.
+ self assert: (self contents includesSubstring: 'literal \x5c\x5c')
+
+]
+
+{ #category : 'tests' }
 PuntLogTest >> testFailedStartCleansSubscriptionAndAllowsRetry [
  | failed |
  PuntLog noticesEnabled: false.

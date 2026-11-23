@@ -61,6 +61,29 @@ PuntLogRedactor >> emailPattern [ ^ self expand: '[a-z0-9._%+\-]+@[a-z0-9.\-]+\.
 ]
 
 { #category : 'private' }
+PuntLogRedactor >> escapeDigitsAt: cursor in: text [
+ | width digits |
+ cursor + 1 > text size ifTrue: [ ^ nil ].
+ width := text at: cursor + 1.
+ width := width = $x ifTrue: [ 2 ] ifFalse: [ width = $u ifTrue: [ 4 ] ifFalse: [ width = $U ifTrue: [ 8 ] ifFalse: [ ^ nil ] ] ].
+ cursor + width + 1 > text size ifTrue: [ ^ nil ].
+ digits := text copyFrom: cursor + 2 to: cursor + width + 1.
+ ^ (digits allSatisfy: [ :digit | '0123456789abcdef' includes: digit ]) ifTrue: [ digits ] ifFalse: [ nil ]
+]
+
+{ #category : 'private' }
+PuntLogRedactor >> escapedCharacterAt: cursor in: text [
+ | digits code character encoded |
+ digits := self escapeDigitsAt: cursor in: text.
+ digits ifNil: [ ^ nil ].
+ code := digits inject: 0 into: [ :value :digit | value * 16 + ('0123456789abcdef' indexOf: digit) - 1 ].
+ code > 16r10ffff ifTrue: [ ^ nil ].
+ character := Character value: code.
+ encoded := text copyFrom: cursor to: cursor + digits size + 1.
+ ^ (PuntEscaper escape: character asString) = encoded ifTrue: [ character ] ifFalse: [ nil ]
+]
+
+{ #category : 'private' }
 PuntLogRedactor >> escapedCode: code [
  ^ String streamContents: [ :stream |
    stream nextPutAll: (code <= 255 ifTrue: [ '\x' ] ifFalse: [ '\u' ]);
@@ -159,11 +182,16 @@ PuntLogRedactor >> replace: text pattern: pattern with: replacement prefix: keep
 
 { #category : 'private' }
 PuntLogRedactor >> restoreSpacing: text [
- | restored |
- restored := text.
- #(9 10 11 12 13 133 8232 8233) do: [ :code |
-   restored := restored copyReplaceAll: (self escapedCode: code) with: (Character value: code) asString ].
- ^ restored
+ | cursor |
+ cursor := 1.
+ ^ String streamContents: [ :stream |
+   [ cursor <= text size ] whileTrue: [
+     | character restored |
+     character := text at: cursor.
+     restored := character = $\ ifTrue: [ self escapedCharacterAt: cursor in: text ] ifFalse: [ nil ].
+     restored ifNil: [ stream nextPut: character. cursor := cursor + 1 ] ifNotNil: [
+       stream nextPut: restored.
+       cursor := cursor + (PuntEscaper escape: restored asString) size ] ] ]
 ]
 
 { #category : 'private' }
