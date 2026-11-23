@@ -38,14 +38,17 @@ PuntLogSink >> append: bytes [
 
 { #category : 'private' }
 PuntLogSink >> appendLocked: bytes [
- | file |
+ | file previousSize |
  file := PuntPrivateFile open: home logFile using: libc.
  [
    file size + bytes size > self maximumBytes ifTrue: [
      file close.
      self rotate.
      file := PuntPrivateFile open: home logFile using: libc ].
-   file append: bytes
+   previousSize := file size.
+   [ file append: bytes ] on: PuntShortWriteError do: [ :error |
+     file truncateTo: previousSize.
+     error pass ]
  ] ensure: [ file close ]
 ]
 

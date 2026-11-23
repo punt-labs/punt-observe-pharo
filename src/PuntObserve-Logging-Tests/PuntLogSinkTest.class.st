@@ -137,3 +137,22 @@ PuntLogSinkTest >> testOversizedExistingFilesAreNeverDeleted [
    self assert: (libc stat: path pathString) size equals: bytes size.
    path delete ]
 ]
+
+{ #category : 'tests' }
+PuntLogSinkTest >> testShortWriteRestoresBoundaryBeforeAnotherRecord [
+ | adapter bytes |
+ self start.
+ adapter := PuntTestWriteFailureLibC new kind: #partialOnce.
+ sink libc: adapter.
+ self deny: (sink append: 'discarded-fragment' utf8Encoded).
+ self assert: sink home logFile contents equals: ''.
+ bytes := ('complete' , String lf) utf8Encoded.
+ self assert: (sink append: bytes).
+ adapter kind: #partialOnce.
+ self deny: (sink append: 'another-fragment' utf8Encoded).
+ self assert: (sink home logFile binaryReadStreamDo: [ :stream | stream contents ]) equals: bytes.
+ self assert: (sink append: bytes).
+ self assert: sink home logFile contents lines equals: #('complete' 'complete').
+ self assert: (sink dropCounts at: #shortWrite) equals: 2.
+ self assert: (sink dropCounts at: #ioFailure) equals: 0
+]

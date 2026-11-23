@@ -77,3 +77,9 @@ PuntPrivateFile >> path [ ^ path
 { #category : 'accessing' }
 PuntPrivateFile >> size [ ^ self metadata size
 ]
+
+{ #category : 'operating' }
+PuntPrivateFile >> truncateTo: size [
+ self isOpen ifFalse: [ PuntPermissionError signal: 'Private file is closed' ].
+ (libc truncate: descriptor to: size) = 0 ifFalse: [ PuntPermissionError signal: 'Cannot restore private file size' ]
+]

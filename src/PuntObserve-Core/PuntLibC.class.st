@@ -198,6 +198,11 @@ PuntLibC >> symlink: target to: path [
  ^ self ffiCall: #(int symlink(String target, String path)) library: LibC
 ]
 
+{ #category : 'ffi' }
+PuntLibC >> truncate: fd to: size [
+ ^ self ffiCall: #(int ftruncate(int fd, long size)) library: LibC
+]
+
 { #category : 'locking' }
 PuntLibC >> tryLock: aDescriptor [ ^ self basicFlock: aDescriptor operation: 6
 ]
