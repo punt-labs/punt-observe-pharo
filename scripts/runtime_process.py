@@ -15,7 +15,9 @@ def identity(pid):
 
 
 def exited(pid):
-    return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] in ("Z", "X")
+    directory = Path(f"/proc/{pid}")
+    state = directory.joinpath("stat").read_text().rsplit(")", 1)[1].split()[0]
+    return state in ("Z", "X") and len(list(directory.joinpath("task").iterdir())) <= 1
 
 
 def matches_command(pid, image, port):

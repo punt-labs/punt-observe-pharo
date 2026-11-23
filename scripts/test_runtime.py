@@ -95,6 +95,17 @@ class RuntimeProcessTest(unittest.TestCase):
         send.assert_not_called()
         self.assertFalse(self.pidfile.exists())
 
+    def test_zombie_leader_with_live_threads_is_not_exited(self):
+        proc = Path(self.directory.name) / "proc"
+        (proc / "task" / "1").mkdir(parents=True)
+        (proc / "task" / "2").mkdir()
+        (proc / "stat").write_text("1 (pharo) Z 1 1 1")
+        real = runtime.Path
+        with patch.object(runtime, "Path", side_effect=lambda path: proc if path == "/proc/1" else real(path)):
+            self.assertFalse(runtime.exited(1))
+            (proc / "task" / "2").rmdir()
+            self.assertTrue(runtime.exited(1))
+
     def test_live_command_mismatch_preserves_record(self):
         contents = json.dumps(self.record)
         self.pidfile.write_text(contents)
