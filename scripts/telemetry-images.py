@@ -58,7 +58,7 @@ started := Time millisecondClockValue.
 started := Time millisecondClockValue.
 elapsed := 0.
 [ telemetry worker pipeline store transaction: [ ] ] on: Error do: [ :error | elapsed := Time millisecondsSince: started ].
-{literal(root / f'elapsed-{worker}')} asFileReference writeStreamDo: [ :s | s print: elapsed ].
+PuntTelemetryImagesTest publish: [ :s | s print: elapsed ] to: {literal(root / f'elapsed-{worker}')} asFileReference.
 [ {literal(root / 'release-tel')} asFileReference exists ] whileFalse: [ (Delay forMilliseconds: 10) wait ].
 1 to: 100 do: [ :index | | observation |
   observation := PuntTestObservation new outcome: #ok; items: {worker * 1000} + index; identifier: 'worker-{worker}-' , index asString.
@@ -66,6 +66,10 @@ elapsed := 0.
   [ telemetry record: observation ] whileFalse: [
     (Time millisecondsSince: started) > 5000 ifTrue: [ Error signal: 'admission deadline' ].
     (Delay forMilliseconds: 1) wait ] ].
+started := Time millisecondClockValue.
+[ telemetry queue isEmpty ] whileFalse: [
+  (Time millisecondsSince: started) > 30000 ifTrue: [ Error signal: 'drain deadline' ].
+  (Delay forMilliseconds: 5) wait ].
 telemetry shutdown.
 Smalltalk exit: 0
 ] on: Error do: [ :error |

@@ -11,12 +11,40 @@ Class {
 	#package : 'PuntObserve-Telemetry-Tests'
 }
 
+{ #category : 'private' }
+PuntTelemetryImagesTest class >> publish: aBlock to: file [
+ | temporary |
+ temporary := file parent / (file basename , '.pending').
+ [ temporary writeStreamDo: aBlock.
+   temporary renameTo: file basename ] ifCurtailed: [ temporary ensureDelete ]
+]
+
 { #category : 'accessing' }
 PuntTelemetryImagesTest >> defaultTimeLimit [ ^ 240 seconds
 ]
 
 { #category : 'private' }
 PuntTelemetryImagesTest >> shellQuote: text [ ^ '''' , (text copyReplaceAll: '''' with: '''"''"''') , ''''
+]
+
+{ #category : 'tests' }
+PuntTelemetryImagesTest >> testElapsedMarkerIsInvisibleUntilComplete [
+ | target entered release done writer |
+ target := sandbox / 'elapsed'. entered := Semaphore new. release := Semaphore new. done := Semaphore new.
+ writer := [
+   [ self class publish: [ :stream |
+       stream nextPutAll: '2'. entered signal. release wait. stream nextPutAll: '00' ] to: target
+   ] ensure: [ done signal ] ] fork.
+ [ self deny: (entered waitTimeoutMilliseconds: 1000).
+   self deny: target exists.
+   release signal.
+   self deny: (done waitTimeoutMilliseconds: 1000).
+   self assert: target contents equals: '200'
+ ] ensure: [ release signal. writer terminate ].
+ target ensureDelete.
+ self should: [ self class publish: [ :stream | stream nextPutAll: 'bad'. self error: 'Incomplete marker' ] to: target ] raise: Error.
+ self deny: target exists.
+ self deny: (sandbox / 'elapsed.pending') exists
 ]
 
 { #category : 'tests' }
