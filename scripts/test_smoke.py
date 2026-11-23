@@ -2,16 +2,31 @@
 
 import unittest
 import importlib.util
+import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
-from smoke import Smoke, log_lines
+from smoke import Smoke, log_lines, private_path
 
 
 class SmokeInspectorTest(unittest.TestCase):
+    def test_private_path_requires_exact_mode_type_and_owner(self):
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "file"
+            path.touch()
+            path.chmod(0o600)
+            link = Path(directory) / "link"
+            link.symlink_to(path)
+            self.assertTrue(private_path(path, 0o600, stat.S_ISREG))
+            self.assertFalse(private_path(path, 0o700, stat.S_ISREG))
+            self.assertFalse(private_path(link, 0o600, stat.S_ISREG))
+            with patch("smoke.os.getuid", return_value=os.getuid() + 1):
+                self.assertFalse(private_path(path, 0o600, stat.S_ISREG))
+
     def test_partial_image_launch_reaps_earlier_child(self):
         for filename in ("logging-images.py", "telemetry-images.py"):
             spec = importlib.util.spec_from_file_location("image_gate", Path(__file__).with_name(filename))

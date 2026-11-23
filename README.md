@@ -3,7 +3,7 @@
 `make smoke` exercises the installed path in a newly downloaded Pharo 12 image.
 It checks success/failure outcomes, detached child correlation, concurrent
 rotation, bounded lock drops and recovery, telemetry privacy, and all off
-switches. Linux requires `python3`, `stat`, `flock` and `setsid`. Artifacts and
+switches. Smoke requires `python3` on Linux and macOS. Artifacts and
 the fresh installed image remain under the printed `.tmp/smoke-*` directory.
 See the [smoke guide](docs/smoke.md) for the entry point and artifact layout.
 
@@ -17,7 +17,8 @@ redacted diagnostics, cross-image bounded rotation and typed private telemetry.
 Loading packages does
 not start loggers or install global telemetry providers.
 
-**Platforms:** Linux x86_64; macOS ABI support is implemented but not yet tested.
+**Verified platforms:** Linux x86_64 and macOS arm64 (Apple Silicon). The Intel
+macOS ABI selection has unit coverage but has not been verified on an Intel Mac.
 The managed runtime requires Python 3 with Linux pidfd support. Startup records
 the process incarnation; stop verifies it and signals a pinned process handle,
 never a bare PID. Legacy or mismatched PID records are refused without signalling.

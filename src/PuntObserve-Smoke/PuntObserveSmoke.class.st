@@ -21,10 +21,22 @@ Class {
 { #category : 'private' }
 PuntObserveSmoke class >> descriptorTarget: fd [
  | bytes length |
+ Smalltalk os isMacOS ifTrue: [ ^ self macDescriptorTarget: fd ].
  bytes := ByteArray new: 4096.
  length := self readLink: '/proc/self/fd/' , fd asString into: bytes count: bytes size.
  length < 0 ifTrue: [ ^ '' ].
  ^ (bytes copyFrom: 1 to: length) utf8Decoded
+]
+
+{ #category : 'private' }
+PuntObserveSmoke class >> macDescriptorTarget: fd [
+ | function buffer |
+ function := TFExternalFunction name: 'fcntl' moduleName: LibC uniqueInstance macLibraryName
+   parameterTypes: { TFBasicType sint. TFBasicType sint. TFBasicType pointer }
+   returnType: TFBasicType sint fixedArgumentCount: 2 abi: (TFAbiTypes classPool at: #DEFAULT_ABI).
+ buffer := ExternalAddress allocate: 1024.
+ ^ [ (TFSameThreadRunner uniqueInstance invokeFunction: function withArguments: { fd. 50. buffer }) = 0
+     ifTrue: [ buffer utf8StringFromCString ] ifFalse: [ '' ] ] ensure: [ buffer free ]
 ]
 
 { #category : 'ffi' }
@@ -70,6 +82,12 @@ PuntObserveSmoke >> childFiles [
 
 { #category : 'private' }
 PuntObserveSmoke >> component [ ^ 'smoke-' , role
+]
+
+{ #category : 'private' }
+PuntObserveSmoke >> detachedLauncher [
+ ^ (self shellQuote: (self environment: 'PUNT_SMOKE_PYTHON' default: 'python3')) , ' -c ' ,
+   (self shellQuote: 'import os, sys; os.setsid(); os.execv(sys.argv[1], sys.argv[1:])')
 ]
 
 { #category : 'private' }
@@ -166,7 +184,7 @@ PuntObserveSmoke >> spawnChild [
  report := files second pathString.
  PuntLog spawnIntent: correlation.
  command := 'PUNT_SMOKE_CHILD_DONE=' , (self shellQuote: marker) , ' PUNT_SMOKE_REPORT=' , (self shellQuote: report)
-   , ' setsid ' , (self shellQuote: Smalltalk vm fullPath) , ' --headless ' , (self shellQuote: Smalltalk imagePath)
+   , ' ' , self detachedLauncher , ' ' , (self shellQuote: Smalltalk vm fullPath) , ' --headless ' , (self shellQuote: Smalltalk imagePath)
    , ' --no-default-preferences eval ' , (self shellQuote: 'PuntObserveSmoke runRole: ''child'' records: 0 fail: false spawn: false')
    , ' </dev/null >/dev/null 2>&1 &'.
  LibC resultOfCommand: command.
