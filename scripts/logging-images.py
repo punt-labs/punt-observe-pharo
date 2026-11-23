@@ -55,13 +55,16 @@ Smalltalk exit: 0.
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=(root / f"stderr-{worker}.log").open("wb"),
             )
         )
     try:
         deadline = time.monotonic() + 45
         while not all((root / f"ready-{worker}").exists() for worker in range(2)):
-            assert all(process.poll() is None for process in processes), "child exited before barrier"
+            assert all(process.poll() is None for process in processes), [
+                (process.poll(), (root / f"stderr-{worker}.log").read_text(errors="replace")[-3000:])
+                for worker, process in enumerate(processes)
+            ]
             assert time.monotonic() < deadline, "child startup deadline"
             time.sleep(0.05)
         (root / "go").touch()

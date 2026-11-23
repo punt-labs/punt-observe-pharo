@@ -38,9 +38,9 @@ BaselineOfPuntObserve >> groups: spec [
 BaselineOfPuntObserve >> packages: spec [
    spec package: 'PuntObserve-Core'.
    spec package: 'PuntObserve-Logging' with: [ spec requires: 'PuntObserve-Core' ].
-   spec package: 'PuntObserve-Telemetry' with: [ spec requires: #('PuntObserve-Core' 'SQLite3' 'OpenTelemetry') ].
+   spec package: 'PuntObserve-Telemetry' with: [ spec requires: #('PuntObserve-Core' 'PuntObserve-Logging' 'SQLite3' 'OpenTelemetry') ].
    spec package: 'PuntObserve-Smoke' with: [ spec requires: #('PuntObserve-Logging' 'PuntObserve-Telemetry') ].
    spec package: 'PuntObserve-Core-Tests' with: [ spec requires: 'PuntObserve-Core' ].
    spec package: 'PuntObserve-Logging-Tests' with: [ spec requires: 'PuntObserve-Logging' ].
-   spec package: 'PuntObserve-Telemetry-Tests' with: [ spec requires: 'PuntObserve-Telemetry' ]
+   spec package: 'PuntObserve-Telemetry-Tests' with: [ spec requires: #('PuntObserve-Telemetry' 'PuntObserve-Core-Tests') ]
 ]

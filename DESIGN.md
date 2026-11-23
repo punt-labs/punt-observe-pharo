@@ -34,8 +34,8 @@ avoiding github archive transport and shallow-history Iceberg failures. The
 SQLite group is Core and OTel groups are traces/metrics, not instrumentation.
 Postern is a development dependency, not a runtime Core dependency.
 Pharo itself follows the official Pharo 12 stable distribution channel.
-Telemetry and Smoke packages remain empty; Logging is the next implemented
-layer over the private descriptor foundation.
+Logging and Telemetry build on the private descriptor foundation. Smoke remains
+a later-stage scaffold.
 
 ## DES-004: Durable Logging Boundary
 
@@ -70,5 +70,36 @@ underscore, rather than Pharo's Unicode-alphanumeric boundary definition.
 
 The multi-image gate reads the current VM and image paths. Build that image
 from persisted Tonel before the gate; do not save an active HTTP request's
-socket/process state as the child-image fixture. Child standard streams are
-discarded and a Python verifier inspects the durable files, not process output.
+socket/process state as the child-image fixture. Child stdout is discarded;
+stderr is kept only in the test sandbox for startup-failure diagnostics. A
+Python verifier inspects the durable files, not process output.
+
+## DES-005: Privacy Before Telemetry Admission
+
+**Date:** 2026-11-23
+
+Only registered schema classes enter the facade. Declared slots, closed enum
+members, required fields, kinds, units and integer bounds are checked before
+admission. The queued record contains a copied primitive attribute dictionary,
+not the caller's observation. Identifiers are HMAC-SHA256 hex, derived with the
+image's SHA256 HMAC implementation. Salt is read afresh, never cached in class
+or instance state. A private exclusive temporary file containing 32 bytes from
+/dev/urandom is atomically linked into place; losing creators read the winner.
+
+One userBackground worker owns private providers, an in-memory delta metric
+reader and either SQLite or explicitly consented OTLP HTTP exporters. The simple
+span processor runs inline on that worker, without an extra exporter timeout
+process. HTTP is bounded to 500 ms with one attempt; SQLite busy timeout is
+200 ms. The 1024-record queue drops on saturation or admission lock contention.
+Shutdown drains within a 1.9-second budget, then discards and terminates a stalled
+worker. Delivery is deliberately best effort, not a durable queue.
+
+SQLite is pre-created at 0600, uses DELETE journals and transactions, validates
+sidecars, and prunes with incremental vacuum at startup and on the worker timer.
+Its private connection subclass unregisters the native handle from automatic
+finalization before deterministic close and clears the pointer afterward. The
+pinned SQLite dependency's forceClose alone leaves that registration intact.
+Export failures produce only a fixed, rate-limited PuntLogSignal; they never
+recursively enter telemetry or report rejected values or exceptions. Environment
+vetoes are reread after restoration, and disabled startup creates no paths or
+worker. OTEL environment variables never select the exporter.

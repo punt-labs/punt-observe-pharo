@@ -22,8 +22,10 @@ tests. Both fail nonzero on evaluation errors, empty selection or findings.
 
 ## Scope
 
-Core and Logging are implemented. Telemetry and Smoke remain scaffolds for
-later stages; do not claim their behavior exists.
+Core, Logging and Telemetry are implemented. Smoke remains a scaffold for a
+later stage; do not claim its behavior exists.
 Do not install global providers. Resolve home again after image restoration.
 Follow [DESIGN.md](DESIGN.md), [Core API](docs/core.md), and
-[Logging API](docs/logging.md) for ownership and lifecycle.
+[Logging API](docs/logging.md) and [Telemetry API](docs/telemetry.md) for ownership
+and lifecycle. Consuming tools declare typed schemas; only this shared package
+may use OpenTelemetry providers, exporters or arbitrary attribute dictionaries.

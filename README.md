@@ -6,7 +6,8 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/punt-labs/punt-observe-pharo/test.yml?label=CI)](https://github.com/punt-labs/punt-observe-pharo/actions/workflows/test.yml)
 
 An alpha shared library for Pharo tools that need private machine-scoped files,
-redacted diagnostics and cross-image bounded rotation. Loading packages does
+redacted diagnostics, cross-image bounded rotation and typed private telemetry.
+Loading packages does
 not start loggers or install global telemetry providers.
 
 **Platforms:** Linux x86_64; macOS ABI support is implemented but not yet tested.
@@ -30,6 +31,11 @@ Metacello new baseline: 'PuntObserve'; repository: 'tonel:///absolute/path/to/pu
 - `PuntLog`: start/stop the one durable Beacon logger and wrap background work.
 - `PuntLogSignal`: typed metadata-only diagnostics, with error/security variants.
 - `PuntLogZincBridge`: optional caller-owned DEBUG bridge for Zinc event types.
+- `PuntTelemetry`: start the bounded, session-aware telemetry worker and record
+  registered typed schemas without exposing OpenTelemetry to consuming tools.
+- `PuntTelemetrySchema`, `PuntTelemetryField`: closed versioned observations;
+  identifier strings are HMAC-SHA256 derived before queue admission.
+- `PuntTelemetryConfig`: retention, off switches and explicit OTLP consent.
 
 Paths resolve beneath `FileLocator home / '.punt-labs'`, never the working
 directory. Permission failures signal `PuntPermissionError`; callers must not
@@ -38,6 +44,7 @@ fall back to an insecure location.
 ## Documentation
 
 [Core API](docs/core.md) | [Logging API](docs/logging.md) |
+[Telemetry API](docs/telemetry.md) |
 [Contributing](CONTRIBUTING.md) |
 [Design](DESIGN.md) | [Changelog](CHANGELOG.md)
 

@@ -140,6 +140,10 @@ PuntLibC >> open: path flags: flags mode: mode [
  ^ self ffiCall: #(int open(String path, int flags, int mode)) library: LibC
 ]
 
+{ #category : 'ffi' }
+PuntLibC >> read: fd bytes: bytes count: count [ ^ self ffiCall: #(long read(int fd, ByteArray bytes, ulong count)) library: LibC
+]
+
 { #category : 'constants' }
 PuntLibC >> readDirectoryFlags [ ^ self noFollowFlag bitOr: self directoryFlag
 ]
