@@ -1,0 +1,5 @@
+pharo/
+.tmp/
+*.image
+*.changes
+*.sources

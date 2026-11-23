@@ -1,0 +1,47 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+image_dir=${IMAGE_DIR:-$root/pharo}
+export PUNT_OBSERVE_ROOT="$root"
+if [ -f "$image_dir/.setup-complete" ]; then
+    echo 'Image already prepared (use a new IMAGE_DIR for a fresh build)'
+    exit 0
+fi
+mkdir -p "$root/.tmp/upstream" "$image_dir"
+clone() {
+    name=$1 url=$2 ref=$3
+    directory="$root/.tmp/upstream/$name"
+    if [ ! -d "$directory/.git" ]; then git clone "$url" "$directory"; fi
+    git -C "$directory" cat-file -e "$ref^{commit}" 2>/dev/null || git -C "$directory" fetch origin "$ref"
+    git -C "$directory" checkout --detach "$ref"
+}
+clone sqlite https://github.com/pharo-rdbms/Pharo-SQLite3.git 44dee155676f9ac9be1c7ffac8caef90024968c4
+clone otel https://github.com/Gabriel-Darbord/opentelemetry-pharo.git 2f5f61c093216309eef43e48211477cceaf0cff7
+clone grpc https://github.com/Gabriel-Darbord/grpc-pharo.git c32efa513b5d553de8f7a398044b3b6b84c4ced1
+clone compat https://github.com/jecisc/PharoBackwardCompatibility.git 395f76feb41c9e618ff6eba84204274c9050713d
+clone postern https://github.com/punt-labs/postern.git e72fae3a5a4d4149b0747275c98d8b454ec61428
+if [ ! -f "$image_dir/Pharo.image" ]; then
+    case "$(uname -s)/$(uname -m)" in
+        Linux/x86_64) platform=Linux; arch=x86_64; executable=pharo ;;
+        Darwin/arm64) platform=Darwin; arch=arm64; executable=Pharo.app/Contents/MacOS/Pharo ;;
+        Darwin/x86_64) platform=Darwin; arch=x86_64; executable=Pharo.app/Contents/MacOS/Pharo ;;
+        *) echo 'Supported: Linux x86_64 and macOS 64-bit' >&2; exit 1 ;;
+    esac
+    download="$image_dir/download"
+    mkdir -p "$download/image" "$image_dir/pharo-vm"
+    curl -fLSs https://files.pharo.org/get-files/120/pharoImage-x86_64.zip -o "$download/image.zip"
+    curl -fLSs "https://files.pharo.org/get-files/120/pharo-vm-$platform-$arch-stable.zip" -o "$download/vm.zip"
+    unzip -q "$download/image.zip" -d "$download/image"
+    unzip -q "$download/vm.zip" -d "$image_dir/pharo-vm"
+    find "$download/image" -name '*.image' -exec mv {} "$image_dir/Pharo.image" \;
+    find "$download/image" -name '*.changes' -exec mv {} "$image_dir/Pharo.changes" \;
+    find "$download/image" -name '*.sources' -exec mv {} "$image_dir/" \;
+    # The wrapper resolves its own directory at execution time.
+    # shellcheck disable=SC2016
+    printf '%s\n' '#!/bin/sh' 'set -eu' 'dir=$(CDPATH="" cd -- "$(dirname -- "$0")" && pwd)' \
+        "exec \"\$dir/pharo-vm/$executable\" --headless \"\$@\"" >"$image_dir/pharo"
+    chmod +x "$image_dir/pharo"
+fi
+"$image_dir/pharo" "$image_dir/Pharo.image" st "$root/scripts/load.st"
+touch "$image_dir/.setup-complete"
+echo 'Fresh image loaded and saved'
