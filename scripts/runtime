@@ -1,0 +1,51 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+image_dir=${IMAGE_DIR:-$root/pharo}
+port=${PORT:-8430}
+case "$port" in ''|*[!0-9]*) echo 'Invalid PORT' >&2; exit 1 ;; esac
+mkdir -p "$root/.tmp"
+pidfile="$root/.tmp/pharo-$port.pid"
+logfile="$root/.tmp/pharo-$port.log"
+process() {
+    python3 "$root/scripts/runtime_process.py" "$1" "$pidfile" \
+        --image "$image_dir/Pharo.image" --port "$port"
+}
+case "${1:-}" in
+start)
+    process supported
+    if [ -f "$pidfile" ] && process check 2>/dev/null; then
+        curl -fsS "http://localhost:$port/health"
+        exit 0
+    fi
+    if curl -fsS "http://localhost:$port/health" >/dev/null 2>&1; then
+        echo "Port $port is already serving an unmanaged image" >&2
+        exit 1
+    fi
+    test -f "$image_dir/.setup-complete" || { echo 'Run make setup first' >&2; exit 1; }
+    nohup "$image_dir/pharo" "$image_dir/Pharo.image" eval --no-quit \
+        "PosternServer startOn: $port" >"$logfile" 2>&1 </dev/null &
+    pid=$!
+    python3 "$root/scripts/runtime_process.py" record "$pidfile" --pid "$pid" \
+        --image "$image_dir/Pharo.image" --port "$port"
+    attempts=0
+    while [ "$attempts" -lt 60 ]; do
+        if ! kill -0 "$pid" 2>/dev/null; then cat "$logfile"; exit 1; fi
+        if curl -fsS "http://localhost:$port/health" >/dev/null 2>&1; then
+            printf 'Postern ready on %s (PID %s)\n' "$port" "$pid"
+            exit 0
+        fi
+        attempts=$((attempts + 1))
+        sleep 1
+    done
+    process abort
+    echo 'Image startup timed out' >&2
+    exit 1
+    ;;
+stop)
+    if [ -f "$pidfile" ]; then
+        process stop
+    fi
+    ;;
+*) echo 'usage: runtime start|stop' >&2; exit 1 ;;
+esac
