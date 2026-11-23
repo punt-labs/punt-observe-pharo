@@ -86,6 +86,25 @@ class RuntimeProcessTest(unittest.TestCase):
                 send.assert_not_called()
                 self.assertEqual(self.pidfile.read_text(), contents)
 
+    def test_unreaped_exit_with_empty_command_removes_record(self):
+        self.pidfile.write_text(json.dumps(self.record))
+        actual = {key: self.record[key] for key in ("pid", "start", "boot")}
+        with patch.object(runtime.os, "pidfd_open", return_value=67), patch.object(runtime, "identity", return_value=actual), patch.object(runtime, "matches_command", return_value=False), patch.object(runtime, "exited", return_value=True), patch.object(runtime.os, "close") as close, patch.object(runtime.signal, "pidfd_send_signal") as send:
+            runtime.manage("stop", self.pidfile, self.image, 8430)
+        close.assert_called_once_with(67)
+        send.assert_not_called()
+        self.assertFalse(self.pidfile.exists())
+
+    def test_live_command_mismatch_preserves_record(self):
+        contents = json.dumps(self.record)
+        self.pidfile.write_text(contents)
+        actual = {key: self.record[key] for key in ("pid", "start", "boot")}
+        with patch.object(runtime.os, "pidfd_open", return_value=67), patch.object(runtime, "identity", return_value=actual), patch.object(runtime, "matches_command", return_value=False), patch.object(runtime, "exited", return_value=False), patch.object(runtime.os, "close"), patch.object(runtime.signal, "pidfd_send_signal") as send:
+            with self.assertRaises(ValueError):
+                runtime.manage("stop", self.pidfile, self.image, 8430)
+        send.assert_not_called()
+        self.assertEqual(self.pidfile.read_text(), contents)
+
     @unittest.skipUnless(hasattr(os, "pidfd_open"), "Linux pidfd required")
     def test_reused_or_unrelated_live_pid_is_not_killed(self):
         child = subprocess.Popen(["sleep", "30"])

@@ -14,6 +14,10 @@ def identity(pid):
             "boot": Path("/proc/sys/kernel/random/boot_id").read_text().strip()}
 
 
+def exited(pid):
+    return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] in ("Z", "X")
+
+
 def matches_command(pid, image, port):
     directory = Path(f"/proc/{pid}")
     arguments = directory.joinpath("cmdline").read_bytes().decode().split("\0")
@@ -34,8 +38,11 @@ def verified_fd(record, image, port, require_command=True):
     try:
         try:
             if (identity(pid) != {key: record[key] for key in ("pid", "start", "boot")}
-                    or record["image"] != str(image.resolve()) or record["port"] != port
-                    or (require_command and not matches_command(pid, image, port))):
+                    or record["image"] != str(image.resolve()) or record["port"] != port):
+                raise ValueError("Process identity mismatch")
+            if require_command and not matches_command(pid, image, port):
+                if exited(pid):
+                    raise ProcessLookupError("Process exited")
                 raise ValueError("Process identity mismatch")
         except FileNotFoundError:
             signal.pidfd_send_signal(descriptor, 0)
