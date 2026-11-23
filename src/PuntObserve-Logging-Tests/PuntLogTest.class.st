@@ -15,12 +15,49 @@ Class {
 }
 
 { #category : 'private' }
+PuntLogTest >> assertTransition: selector guardedBy: guard release: release [
+ | attempted finished transition |
+ attempted := Semaphore new. finished := Semaphore new.
+ transition := [ attempted signal.
+   PuntHome duringHome: home do: [ PuntLog perform: selector with: false ].
+   finished signal ] fork.
+ [ self deny: (attempted waitTimeoutMilliseconds: 5000).
+   self assert: (finished waitTimeoutMilliseconds: 100).
+   self assert: (PuntLog classPool at: #Guard) identicalTo: guard.
+   release signal.
+   self deny: (finished waitTimeoutMilliseconds: 5000).
+   self assert: (PuntLog classPool at: #Guard) identicalTo: guard
+ ] ensure: [ transition terminate ]
+]
+
+{ #category : 'private' }
+PuntLogTest >> assertTransitionSerializesWithStart: selector [
+ | entered release starter results |
+ PuntLog stop.
+ entered := Semaphore new. release := Semaphore new. results := SharedQueue new.
+ starter := self pausedStartEntered: entered release: release results: results.
+ [ self deny: (entered waitTimeoutMilliseconds: 5000).
+   self assertTransition: selector guardedBy: (PuntLog classPool at: #Guard) release: release.
+   self waitFor: [ starter isTerminated ].
+   self assert: (self subscriptionsFor: results next) equals: 0.
+   self start.
+   self assert: (self subscriptionsFor: logger) equals: 1
+ ] ensure: [ release signal. starter terminate. PuntTestPausingStartLog barrier: nil ]
+]
+
+{ #category : 'private' }
 PuntLogTest >> contents [ ^ logger sink home logFile contents
 ]
 
 { #category : 'private' }
 PuntLogTest >> emit: text [
  (PuntLogSignal new component: 'test'; message: text) emit
+]
+
+{ #category : 'private' }
+PuntLogTest >> pausedStartEntered: entered release: release results: results [
+ PuntTestPausingStartLog barrier: { entered. release }.
+ ^ [ results nextPut: (PuntHome duringHome: home do: [ PuntTestPausingStartLog startTool: 'sample-tool' role: 'test' ]) ] fork
 ]
 
 { #category : 'running' }
@@ -240,6 +277,11 @@ PuntLogTest >> testSessionResolvesChangedHome [
  self assert: (original contents includesSubstring: 'Original session').
  self deny: (original contents includesSubstring: 'New session').
  self assert: (self contents includesSubstring: 'New session')
+]
+
+{ #category : 'tests' }
+PuntLogTest >> testSessionTransitionsSerializeWithAnInFlightStart [
+ #(startUp: shutDown:) do: [ :selector | self assertTransitionSerializesWithStart: selector ]
 ]
 
 { #category : 'tests' }
