@@ -63,6 +63,12 @@ PuntObserveSmoke >> awaitBarrier [
 ]
 
 { #category : 'private' }
+PuntObserveSmoke >> childFiles [
+ ^ { (self reportFile pathString , '.child.done') asFileReference.
+     (self reportFile pathString , '.child.json') asFileReference }
+]
+
+{ #category : 'private' }
 PuntObserveSmoke >> component [ ^ 'smoke-' , role
 ]
 
@@ -112,6 +118,14 @@ PuntObserveSmoke >> logOutcome: aSymbol [
 ]
 
 { #category : 'private' }
+PuntObserveSmoke >> prepareChildFiles [
+ | files |
+ files := self childFiles.
+ files do: [ :file | file ensureDelete ].
+ ^ files
+]
+
+{ #category : 'private' }
 PuntObserveSmoke >> recordTelemetry [
  | admitted |
  admitted := { PuntTelemetry record: (PuntObserveSmokeSpan new outcome: outcome; subject: 'smoke-raw-subject-identifier'; duration: 1; yourself).
@@ -146,9 +160,10 @@ PuntObserveSmoke >> shellQuote: text [
 
 { #category : 'private' }
 PuntObserveSmoke >> spawnChild [
- | marker report command |
- marker := self reportFile pathString , '.child.done'.
- report := self reportFile pathString , '.child.json'.
+ | marker report command files |
+ files := self prepareChildFiles.
+ marker := files first pathString.
+ report := files second pathString.
  PuntLog spawnIntent: correlation.
  command := 'PUNT_SMOKE_CHILD_DONE=' , (self shellQuote: marker) , ' PUNT_SMOKE_REPORT=' , (self shellQuote: report)
    , ' setsid ' , (self shellQuote: Smalltalk vm fullPath) , ' --headless ' , (self shellQuote: Smalltalk imagePath)
